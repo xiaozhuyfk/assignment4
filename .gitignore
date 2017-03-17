@@ -5,3 +5,5 @@ worker$
 logs_*
 master
 worker
+.project
+.cproject
