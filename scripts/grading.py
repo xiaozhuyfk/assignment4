@@ -24,8 +24,8 @@ def perf_eval(actual, low, high):
 def grade_wisdom(is_correct, trace_jobs, cpu_seconds):
 
     latency_low_threshold = 2500
-    cpu_baseline = 32;
-    cpu_redline = 64;
+    cpu_baseline = 32/2.0;
+    cpu_redline = 64/2.0;
 
     perf_pts = 0.0;
     quick_count = total = 0
@@ -69,8 +69,8 @@ def grade_wisdom(is_correct, trace_jobs, cpu_seconds):
 def grade_compareprimes(is_correct, trace_jobs, cpu_seconds):
 
     latency_low_threshold = 2000;
-    cpu_baseline = 20;
-    cpu_redline = 40;
+    cpu_baseline = 20/2.0;
+    cpu_redline = 40/2.0;
 
     perf_pts = 0.0;
     quick_count = total = 0
@@ -119,8 +119,8 @@ def grade_tellmenow(is_correct, trace_jobs, cpu_seconds):
     wisdom_latency_low_threshold = 2500
     tellme_latency_low_threshold = 150
 
-    cpu_baseline = 28;
-    cpu_redline = 52;
+    cpu_baseline = 28/2.0;
+    cpu_redline = 52/2.0;
 
     perf_pts = 0.0;
     total_pts = 0
@@ -184,9 +184,9 @@ def grade_tellmenow(is_correct, trace_jobs, cpu_seconds):
 
 def grade_uniform1(is_correct, trace_jobs, cpu_seconds):
 
-    latency_low_threshold = 2000
-    cpu_baseline = 45;
-    cpu_redline = 90;
+    latency_low_threshold = 2400
+    cpu_baseline = 50/2.0;
+    cpu_redline = 100/2.0;
 
     perf_pts = 0.0;
     quick_count = total = 0
@@ -229,8 +229,8 @@ def grade_uniform1(is_correct, trace_jobs, cpu_seconds):
 
 def grade_nonuniform1(is_correct, trace_jobs, cpu_seconds):
     latency_low_threshold = 2500
-    cpu_baseline = 270;
-    cpu_redline = 370;
+    cpu_baseline = 270/2.0;
+    cpu_redline = 370/2.0;
 
     perf_pts = 0.0;
     quick_count = total = 0
@@ -279,8 +279,8 @@ def grade_nonuniform2(is_correct, trace_jobs, cpu_seconds):
     primes_latency_low_threshold = 2500
     projectidea_latency_low_threshold = 4100
 
-    cpu_baseline = 150;
-    cpu_redline = 250;
+    cpu_baseline = 125;
+    cpu_redline = 180;
 
     perf_pts = 0.0;
     total_pts = 0
@@ -350,8 +350,8 @@ def grade_nonuniform3(is_correct, trace_jobs, cpu_seconds):
     projectidea_latency_low_threshold = 4100
     tellme_latency_low_threshold = 150
 
-    cpu_baseline = 350;
-    cpu_redline = 475;
+    cpu_baseline = 350/2.0;
+    cpu_redline = 475/2.0;
 
     perf_pts = 0.0;
     total_pts = 0
