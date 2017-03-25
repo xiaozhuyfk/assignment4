@@ -7,3 +7,4 @@ master
 worker
 .project
 .cproject
+*.pyc
