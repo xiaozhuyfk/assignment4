@@ -4,6 +4,7 @@
 
 #include "server/messages.h"
 #include "server/master.h"
+#include "tools/work_queue.h"
 
 static struct Master_state {
 
@@ -68,8 +69,12 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     // Master node has received a response from one of its workers.
     // Here we directly return this response to the client.
 
-    DLOG(INFO) << "Master received a response from a worker: [" << resp.get_tag() << ":"
-            << resp.get_response() << "]" << std::endl;
+    DLOG(INFO) << "Master received a response from a worker: ["
+            << resp.get_tag()
+            << ":"
+            << resp.get_response()
+            << "]"
+            << std::endl;
 
     send_client_response(mstate.waiting_client, resp);
 
@@ -78,7 +83,9 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
 void handle_client_request(Client_handle client_handle, const Request_msg& client_req) {
 
-    DLOG(INFO) << "Received request: " << client_req.get_request_string() << std::endl;
+    DLOG(INFO) << "Received request: "
+            << client_req.get_request_string()
+            << std::endl;
 
     // You can assume that traces end with this special message.  It
     // exists because it might be useful for debugging to dump

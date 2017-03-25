@@ -6,6 +6,7 @@
 
 #include "server/messages.h"
 #include "server/worker.h"
+#include "tools/work_queue.h"
 #include "tools/cycle_timer.h"
 
 // Generate a valid 'countprimes' request dictionary from integer 'n'
