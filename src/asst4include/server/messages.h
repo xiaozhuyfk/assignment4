@@ -4,58 +4,85 @@
 #include <map>
 #include <string>
 
-
 class Request_msg {
 
-  private:
-     std::map<std::string, std::string> dict;
-     std::string request_str;
-     int tag;
+    private:
+        std::map<std::string, std::string> dict;
+        std::string request_str;
+        int tag;
+        int thread_id;
 
-  public:
-  Request_msg() { tag=0; }
-  Request_msg(int tag);
-  Request_msg(int tag, const std::string& str);
-  Request_msg(int tag, const Request_msg& j);
-  Request_msg(const Request_msg& j); // copy constructor
+    public:
+        Request_msg() {
+            tag = 0;
+            thread_id = 0;
+        }
+        Request_msg(int tag);
+        Request_msg(int tag, const std::string& str);
+        Request_msg(int tag, const Request_msg& j);
+        Request_msg(const Request_msg& j); // copy constructor
 
-  std::string get_arg(const std::string& name) const;
-  void set_arg(const std::string& key, const std::string& value);
+        std::string get_arg(const std::string& name) const;
+        void set_arg(const std::string& key, const std::string& value);
 
-  void set_tag(int arg_tag) { tag = arg_tag; }
-  int  get_tag() const { return tag; }
+        void set_tag(int arg_tag) {
+            tag = arg_tag;
+        }
+        int get_tag() const {
+            return tag;
+        }
 
-  std::string get_request_string() const;
+        void set_thread_id(int id) {
+            thread_id = id;
+        }
+        int get_thread_id() const {
+            return thread_id;
+        }
+
+        std::string get_request_string() const;
 };
-
 
 class Response_msg {
 
-private:
-  int tag;
-  std::string resp_str;
+    private:
+        int tag;
+        int thread_id;
+        std::string resp_str;
 
-public:
+    public:
 
-  Response_msg() {
-    tag = 0;
-  }
+        Response_msg() {
+            tag = 0;
+            thread_id = 0;
+        }
 
-  Response_msg(int arg_tag) {
-    tag = arg_tag;
-  }
+        Response_msg(int arg_tag) {
+            tag = arg_tag;
+            thread_id = 0;
+        }
 
-  int  get_tag() const { return tag; }
-  void set_tag(int arg_tag) { tag = arg_tag; }
+        int get_tag() const {
+            return tag;
+        }
+        void set_tag(int arg_tag) {
+            tag = arg_tag;
+        }
 
-  std::string get_response() const {
-    return resp_str;
-  }
+        int get_thread_id() const {
+            return thread_id;
+        }
 
-  void set_response(const std::string& str) {
-    resp_str = str;
-  }
+        void set_thread_id(int id) {
+            thread_id = id;
+        }
+
+        std::string get_response() const {
+            return resp_str;
+        }
+
+        void set_response(const std::string& str) {
+            resp_str = str;
+        }
 };
-
 
 #endif

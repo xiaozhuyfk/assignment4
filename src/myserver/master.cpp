@@ -2,9 +2,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <map>
+#include <vector>
+#include <queue>
+
 #include "server/messages.h"
 #include "server/master.h"
 #include "tools/work_queue.h"
+
+
+#define NUM_THREADS 24
+
+typedef struct Worker_state wstate;
+struct Worker_state {
+        int job_count;
+        bool processing_cached_job;
+        std::vector<int> work_estimate;
+};
 
 static struct Master_state {
 
@@ -20,6 +34,9 @@ static struct Master_state {
 
         Worker_handle my_worker;
         Client_handle waiting_client;
+
+        std::map<Worker_handle, wstate> worker_roster;
+        std::queue<Worker_handle> idle_workers;
 
 } mstate;
 
@@ -53,7 +70,10 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     // corresponds to.  Since the starter code only sends off one new
     // worker request, we don't use it here.
 
-    mstate.my_worker = worker_handle;
+    mstate.worker_roster[worker_handle].job_count = 0;
+    mstate.worker_roster[worker_handle].processing_cached_job = false;
+    mstate.worker_roster[worker_handle].work_estimate = std::vector<int>(NUM_THREADS, 0);
+    mstate.idle_workers.push(worker_handle);
 
     // Now that a worker is booted, let the system know the server is
     // ready to begin handling client requests.  The test harness will

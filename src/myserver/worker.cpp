@@ -14,8 +14,9 @@
 #define NUM_THREADS 24
 
 static struct Worker_state {
+        int thread_id[NUM_THREADS];
         pthread_t threads[NUM_THREADS];
-        WorkQueue<Request_msg> normal_job_queue;
+        WorkQueue<Request_msg> normal_job_queue[NUM_THREADS];
         WorkQueue<Request_msg> instant_job_queue;
 } wstate;
 
@@ -59,8 +60,9 @@ static void execute_compareprimes(const Request_msg& req, Response_msg& resp) {
 
 
 void *normal_job_handler(void *threadarg) {
+    int thread_id = *((int *) threadarg);
     while (1) {
-        Request_msg req = wstate.normal_job_queue.get_work();
+        Request_msg req = wstate.normal_job_queue[thread_id].get_work();
         Response_msg resp(req.get_tag());
         if (req.get_arg("cmd").compare("compareprimes") == 0) {
             execute_compareprimes(req, resp);
@@ -68,6 +70,7 @@ void *normal_job_handler(void *threadarg) {
             execute_work(req, resp);
         }
 
+        resp.set_thread_id(thread_id);
         worker_send_response(resp);
     }
 
@@ -99,7 +102,11 @@ void worker_node_init(const Request_msg& params) {
             << " ****\n";
 
     for (int i = 1; i < NUM_THREADS; i++) {
-        pthread_create(&wstate.threads[i], NULL, &normal_job_handler, NULL);
+        wstate.thread_id[i] = i;
+        pthread_create(&wstate.threads[i],
+                NULL,
+                &normal_job_handler,
+                (void *) &wstate.thread_id[i]);
     }
 
     pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
@@ -116,7 +123,8 @@ void worker_handle_request(const Request_msg& req) {
     if (req.get_arg("cmd").compare("tellmenow") == 0) {
         wstate.instant_job_queue.put_work(req);
     } else {
-        wstate.normal_job_queue.put_work(req);
+        int thread_id = req.get_thread_id();
+        wstate.normal_job_queue[thread_id].put_work(req);
     }
 }
 
