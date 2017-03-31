@@ -24,8 +24,8 @@ def perf_eval(actual, low, high):
 def grade_wisdom(is_correct, trace_jobs, cpu_seconds):
 
     latency_low_threshold = 2500
-    cpu_baseline = 32/2.0;
-    cpu_redline = 64/2.0;
+    cpu_baseline = 18;
+    cpu_redline = 32;
 
     perf_pts = 0.0;
     quick_count = total = 0
