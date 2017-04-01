@@ -106,27 +106,22 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
 int work_estimate(const Request_msg& req) {
     std::string job = req.get_arg("cmd");
     int estimation;
-    switch (job) {
-        case "418wisdom":
-            estimation = 10;
-            break;
-        case "projectidea":
-        case "tellmenow":
-            estimation = 1;
-            break;
-        case "countprimes":
-            estimation = atoi(req.get_arg("n").c_str());
-            break;
-        case "compareprimes":
-            int n1 = atoi(req.get_arg("n1").c_str());
-            int n2 = atoi(req.get_arg("n2").c_str());
-            int n3 = atoi(req.get_arg("n3").c_str());
-            int n4 = atoi(req.get_arg("n4").c_str());
-            estimation = n1 + n2 + n3 + n4;
-            break;
-        default:
-            estimation = 0;
-            DLOG(WARNING) << "Work estimation: invalid job name." << std::endl;
+
+    if (job == "418wisdom") {
+        estimation = 10;
+    } else if (job == "projectidea" || job == "tellmenow") {
+        estimation = 1;
+    } else if (job == "countprimes") {
+        estimation = atoi(req.get_arg("n").c_str());
+    } else if (job == "compareprimes") {
+        int n1 = atoi(req.get_arg("n1").c_str());
+        int n2 = atoi(req.get_arg("n2").c_str());
+        int n3 = atoi(req.get_arg("n3").c_str());
+        int n4 = atoi(req.get_arg("n4").c_str());
+        estimation = n1 + n2 + n3 + n4;
+    } else {
+        estimation = 0;
+        DLOG(WARNING) << "Work estimation: invalid job name." << std::endl;
     }
 
     return estimation;
