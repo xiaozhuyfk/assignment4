@@ -13,9 +13,10 @@
 
 #define NUM_THREADS 24
 
-typedef struct Worker_state wstate;
 struct Worker_state {
         int job_count;
+        int instant_job_count;
+        int idle_time;
         bool processing_cached_job;
         std::vector<int> work_estimate;
 };
@@ -35,16 +36,26 @@ static struct Master_state {
         Worker_handle my_worker;
         Client_handle waiting_client;
 
-        std::map<Worker_handle, wstate> worker_roster;
+        // all workers alive
+        std::map<Worker_handle, Worker_state> worker_roster;
+
+        // tag-client map
+        std::map<int, Client_handle> client_mapping;
+
+        // tag-request map
+        std::map<int, Request_msg> request_mapping;
+
+        // queue of idle workers (no current jobs)
         std::queue<Worker_handle> idle_workers;
+
+        // queue of requests that not assigned to workers
+        std::queue<Request_msg> pending_requests;
 
 } mstate;
 
 void master_node_init(int max_workers, int& tick_period) {
 
-    // set up tick handler to fire every 5 seconds. (feel free to
-    // configure as you please)
-    tick_period = 5;
+    tick_period = 2;
 
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
@@ -62,6 +73,11 @@ void master_node_init(int max_workers, int& tick_period) {
     req.set_arg("name", "my worker 0");
     request_new_worker_node(req);
 
+    tag = random();
+    Request_msg second(tag);
+    second.set_arg("name", "my worker 1");
+    request_new_worker_node(req);
+
 }
 
 void handle_new_worker_online(Worker_handle worker_handle, int tag) {
@@ -71,8 +87,11 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     // worker request, we don't use it here.
 
     mstate.worker_roster[worker_handle].job_count = 0;
+    mstate.worker_roster[worker_handle].instant_job_count = 0;
+    mstate.worker_roster[worker_handle].idle_time = 0;
     mstate.worker_roster[worker_handle].processing_cached_job = false;
-    mstate.worker_roster[worker_handle].work_estimate = std::vector<int>(NUM_THREADS, 0);
+    mstate.worker_roster[worker_handle].work_estimate =
+            std::vector<int>(NUM_THREADS, 0);
     mstate.idle_workers.push(worker_handle);
 
     // Now that a worker is booted, let the system know the server is
@@ -82,6 +101,35 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
         server_init_complete();
         mstate.server_ready = true;
     }
+}
+
+int work_estimate(const Request_msg& req) {
+    std::string job = req.get_arg("cmd");
+    int estimation;
+    switch (job) {
+        case "418wisdom":
+            estimation = 10;
+            break;
+        case "projectidea":
+        case "tellmenow":
+            estimation = 1;
+            break;
+        case "countprimes":
+            estimation = atoi(req.get_arg("n").c_str());
+            break;
+        case "compareprimes":
+            int n1 = atoi(req.get_arg("n1").c_str());
+            int n2 = atoi(req.get_arg("n2").c_str());
+            int n3 = atoi(req.get_arg("n3").c_str());
+            int n4 = atoi(req.get_arg("n4").c_str());
+            estimation = n1 + n2 + n3 + n4;
+            break;
+        default:
+            estimation = 0;
+            DLOG(WARNING) << "Work estimation: invalid job name." << std::endl;
+    }
+
+    return estimation;
 }
 
 void handle_worker_response(Worker_handle worker_handle, const Response_msg& resp) {
@@ -96,9 +144,31 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             << "]"
             << std::endl;
 
-    send_client_response(mstate.waiting_client, resp);
+    int tag = resp.get_tag();
+    int thread_id = resp.get_thread_id();
+    Request_msg req = mstate.request_mapping[tag];
+    Client_handle client = mstate.client_mapping[tag];
+    Worker_state wstate = mstate.worker_roster[worker_handle];
+    std::string job = req.get_arg("cmd");
 
-    mstate.num_pending_client_requests = 0;
+    if (job == "projectidea") {
+        wstate.processing_cached_job = false;
+    }
+
+    if (job == "tellmenow") {
+        wstate.instant_job_count--;
+    }
+    wstate.job_count--;
+
+    wstate.work_estimate[thread_id] -= work_estimate(req);
+
+    send_client_response(client, resp);
+    mstate.client_mapping.erase(tag);
+    mstate.request_mapping.erase(tag);
+
+    if (wstate.job_count == 0) {
+        mstate.idle_workers.push(worker_handle);
+    }
 }
 
 void handle_client_request(Client_handle client_handle, const Request_msg& client_req) {
@@ -117,27 +187,15 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         return;
     }
 
-    // The provided starter code cannot handle multiple pending client
-    // requests.  The server returns an error message, and the checker
-    // will mark the response as "incorrect"
-    if (mstate.num_pending_client_requests > 0) {
-        Response_msg resp(0);
-        resp.set_response("Oh no! This server cannot handle multiple outstanding requests!");
-        send_client_response(client_handle, resp);
-        return;
-    }
 
-    // Save off the handle to the client that is expecting a response.
-    // The master needs to do this it can response to this client later
-    // when 'handle_worker_response' is called.
-    mstate.waiting_client = client_handle;
-    mstate.num_pending_client_requests++;
 
     // Fire off the request to the worker.  Eventually the worker will
     // respond, and your 'handle_worker_response' event handler will be
     // called to forward the worker's response back to the server.
     int tag = mstate.next_tag++;
     Request_msg worker_req(tag, client_req);
+    mstate.client_mapping[tag] = client_handle;
+    mstate.request_mapping[tag] = worker_req;
     send_request_to_worker(mstate.my_worker, worker_req);
 
     // We're done!  This event handler now returns, and the master

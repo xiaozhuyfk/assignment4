@@ -17,7 +17,7 @@ static struct Worker_state {
         int thread_id[NUM_THREADS];
         pthread_t threads[NUM_THREADS];
         WorkQueue<Request_msg> normal_job_queue[NUM_THREADS];
-        WorkQueue<Request_msg> instant_job_queue;
+        //WorkQueue<Request_msg> instant_job_queue;
 } wstate;
 
 
@@ -77,7 +77,7 @@ void *normal_job_handler(void *threadarg) {
     return NULL;
 }
 
-
+/*
 void *instant_job_handler(void *threadarg) {
     while (1) {
         Request_msg req = wstate.instant_job_queue.get_work();
@@ -88,6 +88,7 @@ void *instant_job_handler(void *threadarg) {
 
     return NULL;
 }
+*/
 
 
 void worker_node_init(const Request_msg& params) {
@@ -101,7 +102,7 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
-    for (int i = 1; i < NUM_THREADS; i++) {
+    for (int i = 0; i < NUM_THREADS; i++) {
         wstate.thread_id[i] = i;
         pthread_create(&wstate.threads[i],
                 NULL,
@@ -109,7 +110,7 @@ void worker_node_init(const Request_msg& params) {
                 (void *) &wstate.thread_id[i]);
     }
 
-    pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
+    //pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
 }
 
 
@@ -120,12 +121,8 @@ void worker_handle_request(const Request_msg& req) {
                 << req.get_request_string()
                 << "]\n";
 
-    if (req.get_arg("cmd").compare("tellmenow") == 0) {
-        wstate.instant_job_queue.put_work(req);
-    } else {
-        int thread_id = req.get_thread_id();
-        wstate.normal_job_queue[thread_id].put_work(req);
-    }
+    int thread_id = req.get_thread_id();
+    wstate.normal_job_queue[thread_id].put_work(req);
 }
 
 /*
