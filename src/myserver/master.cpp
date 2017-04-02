@@ -121,7 +121,7 @@ int work_estimate(Request_msg& req) {
         estimation = n1 + n2 + n3 + n4;
     } else {
         estimation = 0;
-        DLOG(WARNING) << "Work estimation: invalid job name." << std::endl;
+        DLOG(INFO) << "Work estimation: invalid job name." << std::endl;
     }
 
     return estimation;
