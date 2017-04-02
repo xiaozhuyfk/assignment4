@@ -8,3 +8,4 @@ worker
 .project
 .cproject
 *.pyc
+logs/

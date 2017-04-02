@@ -123,53 +123,5 @@ void worker_handle_request(const Request_msg& req) {
                 << "]\n";
 
     int thread_id = req.get_thread_id();
-    DLOG(INFO) << "Thread id is " << thread_id << std::endl;
-
     wstate.normal_job_queue[thread_id].put_work(req);
 }
-
-/*
-void worker_handle_request(const Request_msg& req) {
-
-    // Make the tag of the reponse match the tag of the request.  This
-    // is a way for your master to match worker responses to requests.
-    Response_msg resp(req.get_tag());
-
-    // Output debugging help to the logs (in a single worker node
-    // configuration, this would be in the log logs/worker.INFO)
-    DLOG(INFO) << "Worker got request: ["
-            << req.get_tag()
-            << ":"
-            << req.get_request_string()
-            << "]\n";
-
-    double startTime = CycleTimer::currentSeconds();
-
-    if (req.get_arg("cmd").compare("compareprimes") == 0) {
-
-        // The compareprimes command needs to be special cased since it is
-        // built on four calls to execute_execute work.  All other
-        // requests from the client are one-to-one with calls to
-        // execute_work.
-
-        execute_compareprimes(req, resp);
-
-    } else {
-
-        // actually perform the work.  The response string is filled in by
-        // 'execute_work'
-        execute_work(req, resp);
-
-    }
-
-    double dt = CycleTimer::currentSeconds() - startTime;
-    DLOG(INFO) << "Worker completed work in "
-            << (1000.f * dt)
-            << " ms ("
-            << req.get_tag()
-            << ")\n";
-
-    // send a response string to the master
-    worker_send_response(resp);
-}
-*/

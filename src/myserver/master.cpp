@@ -16,6 +16,23 @@
 
 #define NUM_THREADS 24
 
+
+
+/*
+ * Helper function headers
+ */
+
+int work_estimate(Request_msg& req);
+
+Worker_handle find_best_receiver(Request_msg& req);
+
+void request_new_worker();
+
+
+/*
+ * Master server routine
+ */
+
 struct Worker_state {
         int job_count;
         int idle_time;
@@ -71,10 +88,7 @@ void master_node_init(int max_workers, int& tick_period) {
     // fire off a request for a new worker
 
     for (int i = 0; i < max_workers; i++) {
-        int tag = random();
-        Request_msg req(tag);
-        req.set_arg("name", "my worker");
-        request_new_worker_node(req);
+        request_new_worker();
     }
 
 }
@@ -101,31 +115,6 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     }
 }
 
-int work_estimate(Request_msg& req) {
-    std::string job = req.get_arg("cmd");
-    int estimation;
-
-    if (job == "418wisdom") {
-        estimation = 175;
-    } else if (job == "projectidea") {
-        estimation = 3 * 14 / sizeof(void *);
-    } else if (job == "tellmenow") {
-        estimation = 1;
-    } else if (job == "countprimes") {
-        estimation = (int) ceil(atoi(req.get_arg("n").c_str()) / 100000.0);
-    } else if (job == "compareprimes") {
-        int n1 = (int) ceil(atoi(req.get_arg("n1").c_str()) / 100000.0);
-        int n2 = (int) ceil(atoi(req.get_arg("n2").c_str()) / 100000.0);
-        int n3 = (int) ceil(atoi(req.get_arg("n3").c_str()) / 100000.0);
-        int n4 = (int) ceil(atoi(req.get_arg("n4").c_str()) / 100000.0);
-        estimation = n1 + n2 + n3 + n4;
-    } else {
-        estimation = 0;
-        DLOG(INFO) << "Work estimation: invalid job name." << std::endl;
-    }
-
-    return estimation;
-}
 
 void handle_worker_response(Worker_handle worker_handle, const Response_msg& resp) {
 
@@ -169,37 +158,6 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     }
 }
 
-Worker_handle find_best_receiver(Request_msg& req) {
-    int estimation = work_estimate(req);
-    int min_max = INT_MAX;
-    Worker_handle receiver = NULL;
-
-    for (auto const &pair : mstate.worker_roster) {
-        Worker_handle worker = pair.first;
-        Worker_state wstate = pair.second;
-
-        if (wstate.processing_cached_job) continue;
-
-        int min_estimation = INT_MAX;
-        int min_thread_id = 1;
-        int max_estimation = 0;
-        for (int i = 1; i < NUM_THREADS; i++) {
-            if (wstate.work_estimate[i] < min_estimation) {
-                min_estimation = wstate.work_estimate[i];
-                min_thread_id = i;
-            }
-            if (wstate.work_estimate[i] > max_estimation)
-                max_estimation = wstate.work_estimate[i];
-        }
-
-        if (std::max(max_estimation, min_estimation + estimation) < min_max) {
-            receiver = worker;
-            req.set_thread_id(min_thread_id);
-        }
-    }
-
-    return receiver;
-}
 
 void handle_client_request(Client_handle client_handle, const Request_msg& client_req) {
 
@@ -242,10 +200,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     } else if (worker_req.get_arg("cmd") == "projectidea") {
         if (mstate.idle_workers.size() == 0) {
             if (mstate.worker_roster.size() < mstate.max_num_workers) {
-                int tag = random();
-                Request_msg req(tag);
-                req.set_arg("name", "my worker 0");
-                request_new_worker_node(req);
+                request_new_worker();
             }
             mstate.pending_requests.push(tag);
         } else {
@@ -259,23 +214,14 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             send_request_to_worker(job_receiver, worker_req);
         }
     } else {
-        DLOG(INFO) << "here?" << std::endl;
         Worker_handle job_receiver = find_best_receiver(worker_req);
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
         } else {
-            DLOG(INFO) << worker_req.get_thread_id()
-                    << " and the estimation is "
-                    << work_estimate(worker_req)
-                    << " with receiver "
-                    << job_receiver
-                    << std::endl;
             mstate.worker_roster[job_receiver].job_count++;
             mstate.worker_roster[job_receiver].idle_time = 0;
             mstate.worker_roster[job_receiver].work_estimate[worker_req.get_thread_id()] +=
                     work_estimate(worker_req);
-            DLOG(INFO) << "Does it change? "
-                    << mstate.worker_roster[job_receiver].work_estimate[1];
             send_request_to_worker(job_receiver, worker_req);
         }
     }
@@ -324,5 +270,74 @@ void handle_tick() {
         }
     }
 
+}
+
+
+
+/*
+ * Helper functions
+ */
+
+void request_new_worker() {
+    int tag = random();
+    Request_msg req(tag);
+    req.set_arg("name", "my worker");
+    request_new_worker_node(req);
+}
+
+
+int work_estimate(Request_msg& req) {
+    std::string job = req.get_arg("cmd");
+    int estimation;
+
+    if (job == "418wisdom") {
+        estimation = 175;
+    } else if (job == "projectidea") {
+        estimation = 3 * 14 / sizeof(void *);
+    } else if (job == "tellmenow") {
+        estimation = 1;
+    } else if (job == "countprimes") {
+        estimation = (int) ceil(atoi(req.get_arg("n").c_str()) / 100000.0);
+    } else if (job == "compareprimes") {
+        int n1 = (int) ceil(atoi(req.get_arg("n1").c_str()) / 100000.0);
+        int n2 = (int) ceil(atoi(req.get_arg("n2").c_str()) / 100000.0);
+        int n3 = (int) ceil(atoi(req.get_arg("n3").c_str()) / 100000.0);
+        int n4 = (int) ceil(atoi(req.get_arg("n4").c_str()) / 100000.0);
+        estimation = n1 + n2 + n3 + n4;
+    } else {
+        estimation = 0;
+        DLOG(INFO) << "Work estimation: invalid job name." << std::endl;
+    }
+
+    return estimation;
+}
+
+
+Worker_handle find_best_receiver(Request_msg& req) {
+    int minimum_work = INT_MAX;
+    Worker_handle receiver = NULL;
+
+    for (auto const &pair : mstate.worker_roster) {
+        Worker_handle worker = pair.first;
+        Worker_state wstate = pair.second;
+
+        if (wstate.processing_cached_job) continue;
+
+        int min_estimation = INT_MAX;
+        int min_thread_id = 1;
+        for (int i = 1; i < NUM_THREADS; i++) {
+            if (wstate.work_estimate[i] < min_estimation) {
+                min_estimation = wstate.work_estimate[i];
+                min_thread_id = i;
+            }
+        }
+
+        if (min_estimation < minimum_work) {
+            receiver = worker;
+            req.set_thread_id(min_thread_id);
+        }
+    }
+
+    return receiver;
 }
 
