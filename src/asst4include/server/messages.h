@@ -10,12 +10,10 @@ class Request_msg {
         std::map<std::string, std::string> dict;
         std::string request_str;
         int tag;
-        int thread_id;
 
     public:
         Request_msg() {
             tag = 0;
-            thread_id = 0;
         }
         Request_msg(int tag);
         Request_msg(int tag, const std::string& str);
@@ -46,19 +44,16 @@ class Response_msg {
 
     private:
         int tag;
-        int thread_id;
         std::string resp_str;
 
     public:
 
         Response_msg() {
             tag = 0;
-            thread_id = 0;
         }
 
         Response_msg(int arg_tag) {
             tag = arg_tag;
-            thread_id = 0;
         }
 
         void set_tag(int arg_tag) {
