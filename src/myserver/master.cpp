@@ -279,6 +279,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             wstate.idle_time = 0;
             wstate.work_estimate[worker_req.get_thread_id()] +=
                     work_estimate(worker_req);
+            DLOG(INFO) << "Does it change? "
+                    << mstate.worker_roster[job_receiver].work_estimate[1];
             send_request_to_worker(job_receiver, worker_req);
         }
     }
