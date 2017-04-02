@@ -8,6 +8,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include <unordered_map>
 
 #include "server/messages.h"
 #include "server/master.h"
@@ -54,13 +55,13 @@ static struct Master_state {
         int next_tag;
 
         // all workers alive
-        std::map<Worker_handle, Worker_state> worker_roster;
+        std::unordered_map<Worker_handle, Worker_state> worker_roster;
 
         // tag-client map
-        std::map<int, Client_handle> client_mapping;
+        std::unordered_map<int, Client_handle> client_mapping;
 
         // tag-request map
-        std::map<int, Request_msg> request_mapping;
+        std::unordered_map<int, Request_msg> request_mapping;
 
         // queue of idle workers (no current jobs)
         std::queue<Worker_handle> idle_workers;
