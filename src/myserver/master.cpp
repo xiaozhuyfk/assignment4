@@ -1,6 +1,9 @@
 #include <glog/logging.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <limits.h>
+#include <assert.h>
 
 #include <map>
 #include <vector>
@@ -15,7 +18,6 @@
 
 struct Worker_state {
         int job_count;
-        int instant_job_count;
         int idle_time;
         bool processing_cached_job;
         std::vector<int> work_estimate;
@@ -49,13 +51,13 @@ static struct Master_state {
         std::queue<Worker_handle> idle_workers;
 
         // queue of requests that not assigned to workers
-        std::queue<Request_msg> pending_requests;
+        std::queue<int> pending_requests;
 
 } mstate;
 
 void master_node_init(int max_workers, int& tick_period) {
 
-    tick_period = 2;
+    tick_period = 1;
 
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
@@ -68,15 +70,12 @@ void master_node_init(int max_workers, int& tick_period) {
 
     // fire off a request for a new worker
 
-    int tag = random();
-    Request_msg req(tag);
-    req.set_arg("name", "my worker 0");
-    request_new_worker_node(req);
-
-    tag = random();
-    Request_msg second(tag);
-    second.set_arg("name", "my worker 1");
-    request_new_worker_node(req);
+    for (int i = 0; i < max_workers; i++) {
+        int tag = random();
+        Request_msg req(tag);
+        req.set_arg("name", "my worker");
+        request_new_worker_node(req);
+    }
 
 }
 
@@ -87,7 +86,6 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     // worker request, we don't use it here.
 
     mstate.worker_roster[worker_handle].job_count = 0;
-    mstate.worker_roster[worker_handle].instant_job_count = 0;
     mstate.worker_roster[worker_handle].idle_time = 0;
     mstate.worker_roster[worker_handle].processing_cached_job = false;
     mstate.worker_roster[worker_handle].work_estimate =
@@ -103,21 +101,23 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     }
 }
 
-int work_estimate(const Request_msg& req) {
+int work_estimate(Request_msg& req) {
     std::string job = req.get_arg("cmd");
     int estimation;
 
     if (job == "418wisdom") {
-        estimation = 10;
-    } else if (job == "projectidea" || job == "tellmenow") {
+        estimation = 175;
+    } else if (job == "projectidea") {
+        estimation = 3 * 14 / sizeof(void *);
+    } else if (job == "tellmenow") {
         estimation = 1;
     } else if (job == "countprimes") {
-        estimation = atoi(req.get_arg("n").c_str());
+        estimation = (int) ceil(atoi(req.get_arg("n").c_str()) / 100000.0);
     } else if (job == "compareprimes") {
-        int n1 = atoi(req.get_arg("n1").c_str());
-        int n2 = atoi(req.get_arg("n2").c_str());
-        int n3 = atoi(req.get_arg("n3").c_str());
-        int n4 = atoi(req.get_arg("n4").c_str());
+        int n1 = (int) ceil(atoi(req.get_arg("n1").c_str()) / 100000.0);
+        int n2 = (int) ceil(atoi(req.get_arg("n2").c_str()) / 100000.0);
+        int n3 = (int) ceil(atoi(req.get_arg("n3").c_str()) / 100000.0);
+        int n4 = (int) ceil(atoi(req.get_arg("n4").c_str()) / 100000.0);
         estimation = n1 + n2 + n3 + n4;
     } else {
         estimation = 0;
@@ -150,12 +150,9 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         wstate.processing_cached_job = false;
     }
 
-    if (job == "tellmenow") {
-        wstate.instant_job_count--;
-    }
-    wstate.job_count--;
-
+    if (job != "tellmenow") wstate.job_count--;
     wstate.work_estimate[thread_id] -= work_estimate(req);
+    assert(wstate.work_estimate[thread_id] >= 0);
 
     send_client_response(client, resp);
     mstate.client_mapping.erase(tag);
@@ -164,6 +161,38 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     if (wstate.job_count == 0) {
         mstate.idle_workers.push(worker_handle);
     }
+}
+
+Worker_handle find_best_receiver(Request_msg& req) {
+    int estimation = work_estimate(req);
+    int min_max = INT_MAX;
+    Worker_handle receiver = NULL;
+
+    for (auto const &pair : mstate.worker_roster) {
+        Worker_handle worker = pair.first;
+        Worker_state wstate = pair.second;
+
+        if (wstate.processing_cached_job) continue;
+
+        int min_estimation = INT_MAX;
+        int min_thread_id = 1;
+        int max_estimation = 0;
+        for (int i = 1; i < NUM_THREADS; i++) {
+            if (wstate.work_estimate[i] < min_estimation) {
+                min_estimation = wstate.work_estimate[i];
+                min_thread_id = i;
+            }
+            if (wstate.work_estimate[i] > max_estimation)
+                max_estimation = wstate.work_estimate[i];
+        }
+
+        if (std::max(max_estimation, min_estimation + estimation) < min_max) {
+            receiver = worker;
+            req.set_thread_id(min_thread_id);
+        }
+    }
+
+    return receiver;
 }
 
 void handle_client_request(Client_handle client_handle, const Request_msg& client_req) {
@@ -182,8 +211,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         return;
     }
 
-
-
     // Fire off the request to the worker.  Eventually the worker will
     // respond, and your 'handle_worker_response' event handler will be
     // called to forward the worker's response back to the server.
@@ -191,7 +218,55 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     Request_msg worker_req(tag, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
-    send_request_to_worker(mstate.my_worker, worker_req);
+
+    if (worker_req.get_arg("cmd") == "tellmenow") {
+        int min_instant_job_count = INT_MAX;
+        Worker_handle job_receiver;
+        Worker_state wstate;
+        for (auto const &pair : mstate.worker_roster) {
+            if (pair.second.work_estimate[0] < min_instant_job_count) {
+                min_instant_job_count = pair.second.work_estimate[0];
+                job_receiver = pair.first;
+                wstate = pair.second;
+            }
+        }
+
+        worker_req.set_thread_id(0);
+        wstate.work_estimate[0]++;
+        wstate.idle_time = 0;
+        send_request_to_worker(job_receiver, worker_req);
+    } else if (worker_req.get_arg("cmd") == "projectidea") {
+        if (mstate.idle_workers.size() == 0) {
+            if (mstate.worker_roster.size() < mstate.max_num_workers) {
+                int tag = random();
+                Request_msg req(tag);
+                req.set_arg("name", "my worker 0");
+                request_new_worker_node(req);
+            }
+            mstate.pending_requests.push(tag);
+        } else {
+            Worker_handle job_receiver = mstate.idle_workers.pop();
+            Worker_state wstate = mstate.worker_roster[job_receiver];
+            wstate.processing_cached_job = true;
+            wstate.job_count++;
+            wstate.idle_time = 0;
+            wstate.work_estimate[1] += work_estimate(worker_req);
+            worker_req.set_thread_id(1);
+            send_request_to_worker(job_receiver, worker_req);
+        }
+    } else {
+        Worker_handle job_receiver = find_best_receiver(worker_req);
+        if (job_receiver == NULL) {
+            mstate.pending_requests.push(tag);
+        } else {
+            Worker_state wstate = mstate.worker_roster[job_receiver];
+            wstate.job_count++;
+            wstate.idle_time = 0;
+            wstate.work_estimate[worker_req.get_thread_id()] +=
+                    work_estimate(worker_req);
+            send_request_to_worker(job_receiver, worker_req);
+        }
+    }
 
     // We're done!  This event handler now returns, and the master
     // process calls another one of your handlers when action is
@@ -204,6 +279,38 @@ void handle_tick() {
     // TODO: you may wish to take action here.  This method is called at
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
+
+    while (mstate.pending_requests.size() > 0) {
+        int tag = mstate.pending_requests.front();
+        Request_msg req = mstate.request_mapping[tag];
+        if (req.get_arg("cmd") == "projectidea") {
+            if (mstate.idle_workers.size() == 0) {
+                break;
+            } else {
+                Worker_handle job_receiver = mstate.idle_workers.pop();
+                Worker_state wstate = mstate.worker_roster[job_receiver];
+                wstate.processing_cached_job = true;
+                wstate.job_count++;
+                wstate.idle_time = 0;
+                wstate.work_estimate[1] += work_estimate(req);
+                req.set_thread_id(1);
+                send_request_to_worker(job_receiver, req);
+                mstate.pending_requests.pop();
+            }
+        } else {
+            Worker_handle job_receiver = find_best_receiver(req);
+            if (job_receiver == NULL) {
+                break;
+            } else {
+                Worker_state wstate = mstate.worker_roster[job_receiver];
+                wstate.job_count++;
+                wstate.idle_time = 0;
+                wstate.work_estimate[req.get_thread_id()] += work_estimate(req);
+                send_request_to_worker(job_receiver, req);
+                mstate.pending_requests.pop();
+            }
+        }
+    }
 
 }
 
