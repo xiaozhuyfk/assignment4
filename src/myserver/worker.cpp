@@ -104,7 +104,7 @@ void worker_node_init(const Request_msg& params) {
 
     for (int i = 0; i < NUM_THREADS; i++) {
         wstate.thread_id[i] = i;
-        wstate.normal_job_queue[i] = WorkQueue();
+        wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
         pthread_create(&wstate.threads[i],
                 NULL,
                 &normal_job_handler,
