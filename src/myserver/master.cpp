@@ -259,10 +259,12 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             send_request_to_worker(job_receiver, worker_req);
         }
     } else {
+        DLOG(INFO) << "here?" << std::endl;
         Worker_handle job_receiver = find_best_receiver(worker_req);
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
         } else {
+            DLOG(INFO) << worker_req.get_thread_id() << std::endl;
             Worker_state wstate = mstate.worker_roster[job_receiver];
             wstate.job_count++;
             wstate.idle_time = 0;
