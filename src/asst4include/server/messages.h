@@ -29,7 +29,7 @@ class Request_msg {
             tag = arg_tag * 100 + (tag % 100);
         }
         int get_tag() const {
-            return tag / 100;
+            return tag;
         }
 
         void set_thread_id(int id) {
@@ -65,7 +65,7 @@ class Response_msg {
             tag = arg_tag * 100 + (tag % 100);
         }
         int get_tag() const {
-            return tag / 100;
+            return tag;
         }
 
         void set_thread_id(int id) {
