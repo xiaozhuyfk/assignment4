@@ -26,17 +26,17 @@ class Request_msg {
         void set_arg(const std::string& key, const std::string& value);
 
         void set_tag(int arg_tag) {
-            tag = arg_tag;
+            tag = arg_tag * 100 + (tag % 100);
         }
         int get_tag() const {
-            return tag;
+            return tag / 100;
         }
 
         void set_thread_id(int id) {
-            thread_id = id;
+            tag = (tag / 100) * 100 + id;
         }
         int get_thread_id() const {
-            return thread_id;
+            return tag % 100;
         }
 
         std::string get_request_string() const;
@@ -61,19 +61,18 @@ class Response_msg {
             thread_id = 0;
         }
 
-        int get_tag() const {
-            return tag;
-        }
         void set_tag(int arg_tag) {
-            tag = arg_tag;
+            tag = arg_tag * 100 + (tag % 100);
         }
-
-        int get_thread_id() const {
-            return thread_id;
+        int get_tag() const {
+            return tag / 100;
         }
 
         void set_thread_id(int id) {
-            thread_id = id;
+            tag = (tag / 100) * 100 + id;
+        }
+        int get_thread_id() const {
+            return tag % 100;
         }
 
         std::string get_response() const {
