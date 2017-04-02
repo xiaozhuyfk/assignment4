@@ -15,7 +15,7 @@
 
 
 #define NUM_THREADS 24
-#define JOB_COUNT_THREASHOLD 12
+#define JOB_COUNT_THREASHOLD 48
 #define WORK_THREASHOLD 200
 
 
@@ -27,7 +27,7 @@ int work_estimate(Request_msg& req);
 
 Worker_handle find_best_receiver(Request_msg& req);
 
-void request_new_worker();
+void request_new_worker(std::string name);
 
 
 /*
@@ -83,7 +83,7 @@ void master_node_init(int max_workers, int& tick_period) {
     mstate.server_ready = false;
 
     // fire off a request for a new worker
-    request_new_worker();
+    request_new_worker("master_node_init");
 }
 
 void handle_new_worker_online(Worker_handle worker_handle, int tag) {
@@ -141,7 +141,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
-    if (mstate.worker_roster[worker_handle].job_count == 0) {
+    if (mstate.worker_roster[worker_handle].job_count == 0 &&
+            mstate.worker_roster[worker_handle].instant_job_count == 0) {
         mstate.idle_workers.push(worker_handle);
     }
 }
@@ -172,15 +173,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     mstate.request_mapping[tag] = worker_req;
 
     if (worker_req.get_arg("cmd") == "tellmenow") {
-        int min_instant_job_count = INT_MAX;
-        Worker_handle job_receiver;
-        for (auto const &pair : mstate.worker_roster) {
-            if (pair.second.work_estimate[0] < min_instant_job_count) {
-                min_instant_job_count = pair.second.work_estimate[0];
-                job_receiver = pair.first;
-            }
-        }
-
+        Worker_handle job_receiver = mstate.worker_roster.begin()->first;
         worker_req.set_thread_id(0);
         mstate.worker_roster[job_receiver].instant_job_count++;
         mstate.worker_roster[job_receiver].work_estimate[0]++;
@@ -189,7 +182,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     } else if (worker_req.get_arg("cmd") == "projectidea") {
         if (mstate.idle_workers.size() == 0) {
             if (mstate.worker_roster.size() < mstate.max_num_workers) {
-                request_new_worker();
+                request_new_worker("cached job");
             }
             mstate.pending_requests.push(tag);
         } else {
@@ -212,6 +205,11 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.worker_roster[job_receiver].work_estimate[worker_req.get_thread_id()] +=
                     work_estimate(worker_req);
             send_request_to_worker(job_receiver, worker_req);
+            DLOG(WARNING) << "Send request to worker "
+                    << job_receiver
+                    << " on thread id "
+                    << worker_req.get_thread_id()
+                    << std::endl;
         }
     }
 
@@ -261,28 +259,27 @@ void handle_tick() {
 
     // request new workers
     if (mstate.worker_roster.size() < mstate.max_num_workers) {
-        int max_job_count = 0;
+        int min_job_count = INT_MAX;
         for (auto const &pair : mstate.worker_roster) {
             Worker_state wstate = pair.second;
-            if (wstate.job_count > max_job_count)
-                max_job_count = wstate.job_count;
+            if (wstate.job_count < min_job_count)
+                min_job_count = wstate.job_count;
         }
 
-        if (max_job_count > JOB_COUNT_THREASHOLD) request_new_worker();
+        if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
+            request_new_worker("overload");
     }
 
     // discard idle workers
     /*
-    while (mstate.worker_roster.size() > 0) {
+    if (mstate.worker_roster.size() > 0) {
         Worker_handle worker = mstate.idle_workers.front();
         Worker_state wstate = mstate.worker_roster[worker];
         if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-            mstate.worker_roster[worker].idle_time++;
-            if (mstate.worker_roster[worker].idle_time > 3) {
-                mstate.idle_workers.pop();
-                mstate.worker_roster.erase(worker);
-                kill_worker_node(worker);
-            }
+            DLOG(INFO) << "enter here" << std::endl;
+            mstate.idle_workers.pop();
+            mstate.worker_roster.erase(worker);
+            kill_worker_node(worker);
         }
     }
     */
@@ -294,10 +291,10 @@ void handle_tick() {
  * Helper functions
  */
 
-void request_new_worker() {
+void request_new_worker(std::string name) {
     int tag = random();
     Request_msg req(tag);
-    req.set_arg("name", "my worker");
+    req.set_arg("name", name);
     request_new_worker_node(req);
 }
 
