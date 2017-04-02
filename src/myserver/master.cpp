@@ -39,7 +39,6 @@ struct Worker_state {
         int instant_job_count;
         int idle_time;
         bool processing_cached_job;
-        std::vector<int> work_estimate;
 };
 
 static struct Master_state {
@@ -96,8 +95,6 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     mstate.worker_roster[worker_handle].instant_job_count = 0;
     mstate.worker_roster[worker_handle].idle_time = 0;
     mstate.worker_roster[worker_handle].processing_cached_job = false;
-    mstate.worker_roster[worker_handle].work_estimate =
-            std::vector<int>(NUM_THREADS, 0);
     mstate.idle_workers.push(worker_handle);
 
     // Now that a worker is booted, let the system know the server is
@@ -122,8 +119,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             << "]"
             << std::endl;
 
-    int tag = resp.get_tag() / 100;
-    int thread_id = resp.get_thread_id();
+    int tag = resp.get_tag();
     Request_msg req = mstate.request_mapping[tag];
     Client_handle client = mstate.client_mapping[tag];
     std::string job = req.get_arg("cmd");
@@ -134,8 +130,6 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     if (job != "tellmenow") mstate.worker_roster[worker_handle].job_count--;
     else mstate.worker_roster[worker_handle].instant_job_count--;
-    mstate.worker_roster[worker_handle].work_estimate[thread_id] -= work_estimate(req);
-    assert(mstate.worker_roster[worker_handle].work_estimate[thread_id] >= 0);
 
     send_client_response(client, resp);
     mstate.client_mapping.erase(tag);
@@ -168,15 +162,13 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     // respond, and your 'handle_worker_response' event handler will be
     // called to forward the worker's response back to the server.
     int tag = mstate.next_tag++;
-    Request_msg worker_req(tag * 100, client_req);
+    Request_msg worker_req(tag, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
 
     if (worker_req.get_arg("cmd") == "tellmenow") {
         Worker_handle job_receiver = mstate.worker_roster.begin()->first;
-        worker_req.set_thread_id(0);
         mstate.worker_roster[job_receiver].instant_job_count++;
-        mstate.worker_roster[job_receiver].work_estimate[0]++;
         mstate.worker_roster[job_receiver].idle_time = 0;
         send_request_to_worker(job_receiver, worker_req);
     } else if (worker_req.get_arg("cmd") == "projectidea") {
@@ -191,8 +183,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.worker_roster[job_receiver].processing_cached_job = true;
             mstate.worker_roster[job_receiver].job_count++;
             mstate.worker_roster[job_receiver].idle_time = 0;
-            mstate.worker_roster[job_receiver].work_estimate[1] += work_estimate(worker_req);
-            worker_req.set_thread_id(1);
             send_request_to_worker(job_receiver, worker_req);
         }
     } else {
@@ -202,14 +192,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         } else {
             mstate.worker_roster[job_receiver].job_count++;
             mstate.worker_roster[job_receiver].idle_time = 0;
-            mstate.worker_roster[job_receiver].work_estimate[worker_req.get_thread_id()] +=
-                    work_estimate(worker_req);
             send_request_to_worker(job_receiver, worker_req);
-            DLOG(WARNING) << "Send request to worker "
-                    << job_receiver
-                    << " on thread id "
-                    << worker_req.get_thread_id()
-                    << std::endl;
         }
     }
 
@@ -237,8 +220,6 @@ void handle_tick() {
                 mstate.worker_roster[job_receiver].processing_cached_job = true;
                 mstate.worker_roster[job_receiver].job_count++;
                 mstate.worker_roster[job_receiver].idle_time = 0;
-                mstate.worker_roster[job_receiver].work_estimate[1] += work_estimate(req);
-                req.set_thread_id(1);
                 send_request_to_worker(job_receiver, req);
                 mstate.pending_requests.pop();
             }
@@ -249,8 +230,6 @@ void handle_tick() {
             } else {
                 mstate.worker_roster[job_receiver].job_count++;
                 mstate.worker_roster[job_receiver].idle_time = 0;
-                mstate.worker_roster[job_receiver].work_estimate[req.get_thread_id()] +=
-                        work_estimate(req);
                 send_request_to_worker(job_receiver, req);
                 mstate.pending_requests.pop();
             }
@@ -336,18 +315,8 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
         if (wstate.processing_cached_job) continue;
 
-        int min_estimation = INT_MAX;
-        int min_thread_id = 1;
-        for (int i = 1; i < NUM_THREADS; i++) {
-            if (wstate.work_estimate[i] < min_estimation) {
-                min_estimation = wstate.work_estimate[i];
-                min_thread_id = i;
-            }
-        }
-
-        if (min_estimation < minimum_work) {
+        if (wstate.job_count < minimum_work) {
             receiver = worker;
-            req.set_thread_id(min_thread_id);
         }
     }
 
