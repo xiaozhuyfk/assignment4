@@ -70,7 +70,7 @@ void master_node_init(int max_workers, int& tick_period) {
 
     // fire off a request for a new worker
 
-    for (size_t i = 0; i < max_workers; i++) {
+    for (int i = 0; i < max_workers; i++) {
         int tag = random();
         Request_msg req(tag);
         req.set_arg("name", "my worker");
