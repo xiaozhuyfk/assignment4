@@ -152,6 +152,9 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     if (job != "tellmenow") wstate.job_count--;
     wstate.work_estimate[thread_id] -= work_estimate(req);
+    DLOG(INFO) << "WTF?"
+            << thread_id
+            << wstate.work_estimate[thread_id] << std::endl;
     assert(wstate.work_estimate[thread_id] >= 0);
 
     send_client_response(client, resp);
