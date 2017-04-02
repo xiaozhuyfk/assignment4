@@ -123,10 +123,9 @@ void worker_handle_request(const Request_msg& req) {
                 << "]\n";
 
     int thread_id = req.get_thread_id();
+    DLOG(INFO) << "Thread id is " << thread_id << std::endl;
 
-    DLOG(INFO) << "before" << std::endl;
     wstate.normal_job_queue[thread_id].put_work(req);
-    DLOG(INFO) << "after" << std::endl;
 }
 
 /*
