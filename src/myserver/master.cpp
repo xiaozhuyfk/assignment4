@@ -264,7 +264,10 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
         } else {
-            DLOG(INFO) << worker_req.get_thread_id() << std::endl;
+            DLOG(INFO) << worker_req.get_thread_id()
+                    << " and the estimation is "
+                    << work_estimate(worker_req)
+                    << std::endl;
             Worker_state wstate = mstate.worker_roster[job_receiver];
             wstate.job_count++;
             wstate.idle_time = 0;
