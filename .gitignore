@@ -9,3 +9,5 @@ worker
 .cproject
 *.pyc
 logs/
+latedays.qsub*
+logs*/
