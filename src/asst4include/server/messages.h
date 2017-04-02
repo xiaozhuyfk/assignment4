@@ -26,7 +26,7 @@ class Request_msg {
         void set_arg(const std::string& key, const std::string& value);
 
         void set_tag(int arg_tag) {
-            tag = arg_tag * 100 + (tag % 100);
+            tag = arg_tag;
         }
         int get_tag() const {
             return tag;
@@ -62,7 +62,7 @@ class Response_msg {
         }
 
         void set_tag(int arg_tag) {
-            tag = arg_tag * 100 + (tag % 100);
+            tag = arg_tag;
         }
         int get_tag() const {
             return tag;

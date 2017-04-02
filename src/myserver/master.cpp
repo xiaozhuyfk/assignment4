@@ -139,7 +139,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             << "]"
             << std::endl;
 
-    int tag = resp.get_tag();
+    int tag = resp.get_tag() / 100;
     int thread_id = resp.get_thread_id();
     Request_msg req = mstate.request_mapping[tag];
     Client_handle client = mstate.client_mapping[tag];
@@ -218,7 +218,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     // respond, and your 'handle_worker_response' event handler will be
     // called to forward the worker's response back to the server.
     int tag = mstate.next_tag++;
-    Request_msg worker_req(tag, client_req);
+    Request_msg worker_req(tag * 100, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
 
