@@ -15,7 +15,8 @@
 
 
 #define NUM_THREADS 24
-
+#define JOB_COUNT_THREASHOLD 12
+#define WORK_THREASHOLD 200
 
 
 /*
@@ -35,6 +36,7 @@ void request_new_worker();
 
 struct Worker_state {
         int job_count;
+        int instant_job_count;
         int idle_time;
         bool processing_cached_job;
         std::vector<int> work_estimate;
@@ -49,11 +51,7 @@ static struct Master_state {
 
         bool server_ready;
         int max_num_workers;
-        int num_pending_client_requests;
         int next_tag;
-
-        Worker_handle my_worker;
-        Client_handle waiting_client;
 
         // all workers alive
         std::map<Worker_handle, Worker_state> worker_roster;
@@ -78,7 +76,6 @@ void master_node_init(int max_workers, int& tick_period) {
 
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
-    mstate.num_pending_client_requests = 0;
 
     // don't mark the server as ready until the server is ready to go.
     // This is actually when the first worker is up and running, not
@@ -86,11 +83,7 @@ void master_node_init(int max_workers, int& tick_period) {
     mstate.server_ready = false;
 
     // fire off a request for a new worker
-
-    for (int i = 0; i < max_workers; i++) {
-        request_new_worker();
-    }
-
+    request_new_worker();
 }
 
 void handle_new_worker_online(Worker_handle worker_handle, int tag) {
@@ -100,6 +93,7 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     // worker request, we don't use it here.
 
     mstate.worker_roster[worker_handle].job_count = 0;
+    mstate.worker_roster[worker_handle].instant_job_count = 0;
     mstate.worker_roster[worker_handle].idle_time = 0;
     mstate.worker_roster[worker_handle].processing_cached_job = false;
     mstate.worker_roster[worker_handle].work_estimate =
@@ -139,14 +133,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     }
 
     if (job != "tellmenow") mstate.worker_roster[worker_handle].job_count--;
+    else mstate.worker_roster[worker_handle].instant_job_count--;
     mstate.worker_roster[worker_handle].work_estimate[thread_id] -= work_estimate(req);
-    DLOG(INFO) << "WTF? The thread id is "
-            << thread_id
-            << " and the estimation is "
-            << mstate.worker_roster[worker_handle].work_estimate[thread_id]
-            << " with job receiver "
-            << worker_handle
-            << std::endl;
     assert(mstate.worker_roster[worker_handle].work_estimate[thread_id] >= 0);
 
     send_client_response(client, resp);
@@ -194,6 +182,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         }
 
         worker_req.set_thread_id(0);
+        mstate.worker_roster[job_receiver].instant_job_count++;
         mstate.worker_roster[job_receiver].work_estimate[0]++;
         mstate.worker_roster[job_receiver].idle_time = 0;
         send_request_to_worker(job_receiver, worker_req);
@@ -270,6 +259,33 @@ void handle_tick() {
         }
     }
 
+    // request new workers
+    if (mstate.worker_roster.size() < mstate.max_num_workers) {
+        int max_job_count = 0;
+        for (auto const &pair : mstate.worker_roster) {
+            Worker_state wstate = pair.second;
+            if (wstate.job_count > max_job_count)
+                max_job_count = wstate.job_count;
+        }
+
+        if (max_job_count > JOB_COUNT_THREASHOLD) request_new_worker();
+    }
+
+    // discard idle workers
+    /*
+    while (mstate.worker_roster.size() > 0) {
+        Worker_handle worker = mstate.idle_workers.front();
+        Worker_state wstate = mstate.worker_roster[worker];
+        if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
+            mstate.worker_roster[worker].idle_time++;
+            if (mstate.worker_roster[worker].idle_time > 3) {
+                mstate.idle_workers.pop();
+                mstate.worker_roster.erase(worker);
+                kill_worker_node(worker);
+            }
+        }
+    }
+    */
 }
 
 
