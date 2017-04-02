@@ -70,7 +70,7 @@ void master_node_init(int max_workers, int& tick_period) {
 
     // fire off a request for a new worker
 
-    for (int i = 0; i < max_workers; i++) {
+    for (size_t i = 0; i < max_workers; i++) {
         int tag = random();
         Request_msg req(tag);
         req.set_arg("name", "my worker");
@@ -245,7 +245,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             }
             mstate.pending_requests.push(tag);
         } else {
-            Worker_handle job_receiver = mstate.idle_workers.pop();
+            Worker_handle job_receiver = mstate.idle_workers.front();
+            mstate.idle_workers.pop();
             Worker_state wstate = mstate.worker_roster[job_receiver];
             wstate.processing_cached_job = true;
             wstate.job_count++;
@@ -287,7 +288,8 @@ void handle_tick() {
             if (mstate.idle_workers.size() == 0) {
                 break;
             } else {
-                Worker_handle job_receiver = mstate.idle_workers.pop();
+                Worker_handle job_receiver = mstate.idle_workers.front();
+                mstate.idle_workers.pop();
                 Worker_state wstate = mstate.worker_roster[job_receiver];
                 wstate.processing_cached_job = true;
                 wstate.job_count++;
