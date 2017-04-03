@@ -529,7 +529,7 @@ void distribute_job(Request_msg& req) {
 
 
 void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
-    DLOG(FATAL) << "Distribute job "
+    DLOG(WARNING) << "Distribute job "
                 << req.get_request_string()
                 << " to worker "
                 << worker
