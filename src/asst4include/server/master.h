@@ -115,5 +115,7 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag);
 void handle_tick();
 
 
+void compute_cmp_prime_resp(int tag, Response_msg& cmp_prime_resp, std::vector<Response_msg> prime_resp);
+
 
 #endif  // __ASST4INCLUDE_MASTER_H__
