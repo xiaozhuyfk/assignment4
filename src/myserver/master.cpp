@@ -227,13 +227,15 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     // add to idle queue if no job is current processing
     if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-        if (mstate.pending_cached_jobs.size() > 0) {
+        if (mstate.pending_cached_jobs.size() > 0 && thread_id > 0) {
             int tag = mstate.pending_cached_jobs.front();
             mstate.pending_cached_jobs.pop();
             distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
+        } else {
+            mstate.idle_workers.push(worker_handle);
         }
     } else {
-        if (mstate.pending_requests.size() > 0) {
+        if (mstate.pending_requests.size() > 0 && thread_id > 0) {
             int tag = mstate.pending_requests.front();
             mstate.pending_requests.pop();
             Request_msg& req = mstate.request_mapping[tag];
@@ -478,10 +480,6 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
 
 void distribute_job(Request_msg& req) {
-    DLOG(WARNING) << "Distribute job "
-            << req.get_request_string()
-            << std::endl;
-
     int tag = req.get_tag() / 100;
 
     if (req.get_arg("cmd") == "tellmenow") {
@@ -515,7 +513,6 @@ void distribute_job(Request_msg& req) {
     else {
         Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
-            DLOG(WARNING) << "Pushed to pending requests?" << std::endl;
             mstate.pending_requests.push(tag);
         } else {
             mstate.worker_roster[job_receiver].job_count++;
@@ -529,11 +526,6 @@ void distribute_job(Request_msg& req) {
 
 
 void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
-    DLOG(WARNING) << "Distribute job "
-                << req.get_request_string()
-                << " to worker "
-                << worker
-                << std::endl;
     Worker_state& wstate = mstate.worker_roster[worker];
     if (req.get_arg("cmd") == "tellmenow") {
         req.set_thread_id(0);
