@@ -508,6 +508,7 @@ void distribute_job(Request_msg& req) {
             DLOG(INFO) << 4 << std::endl;
             Worker_handle job_receiver = mstate.idle_workers.front();
             if (mstate.worker_roster.find(job_receiver) == mstate.worker_roster.end()) {
+                DLOG(INFO) << job_receiver << std::endl;
                 DLOG(INFO) << "Not found" << std::endl;
             } else {
                 DLOG(INFO) << "Found" << std::endl;
