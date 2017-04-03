@@ -509,9 +509,13 @@ void distribute_job(Request_msg& req) {
             Worker_handle job_receiver = mstate.idle_workers.front();
             DLOG(INFO) << 5 << std::endl;
             mstate.idle_workers.pop();
+            DLOG(INFO) << 5.1 << std::endl;
             mstate.worker_roster[job_receiver].processing_cached_job = true;
+            DLOG(INFO) << 5.2 << std::endl;
             mstate.worker_roster[job_receiver].job_count++;
+            DLOG(INFO) << 5.3 << std::endl;
             mstate.worker_roster[job_receiver].idle_time = 0;
+            DLOG(INFO) << 5.4 << std::endl;
             mstate.worker_roster[job_receiver].work_estimate[1] +=
                     work_estimate(req);
             DLOG(INFO) << 6 << std::endl;
