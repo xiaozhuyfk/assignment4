@@ -361,6 +361,10 @@ void handle_tick() {
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
 
+    if (mstate.worker_roster.size() + mstate.requested_workers < mstate.max_num_workers &&
+            mstate.pending_requests.size() > 20) {
+        request_new_worker();
+    }
     /*
     while (mstate.pending_requests.size() > 0) {
         int tag = mstate.pending_requests.front();
