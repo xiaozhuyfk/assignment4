@@ -295,7 +295,7 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
         if (wstate.job_count < minimum_work) {
             receiver = worker;
-            minimum_work = wstate.job_count;
+            //minimum_work = wstate.job_count;
         }
     }
 
