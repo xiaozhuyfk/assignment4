@@ -533,6 +533,11 @@ void distribute_job(Request_msg& req) {
 
 
 void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
+    DLOG(FATAL) << "Distribute job "
+                << req.get_request_string()
+                << " to worker "
+                << worker
+                << std::endl;
     Worker_state& wstate = mstate.worker_roster[worker];
     if (req.get_arg("cmd") == "tellmenow") {
         req.set_thread_id(0);
