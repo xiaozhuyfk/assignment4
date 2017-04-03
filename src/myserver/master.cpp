@@ -235,8 +235,6 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
         } else {
             mstate.idle_workers.push(worker_handle);
-            DLOG(WARNING) << "Add worker to idle " <<
-                    worker_handle << std::endl;
         }
     } else {
         if (mstate.pending_requests.size() > 0 && thread_id > 0) {
@@ -506,6 +504,8 @@ void distribute_job(Request_msg& req) {
         } else {
             DLOG(INFO) << 2 << std::endl;
             Worker_handle job_receiver = mstate.idle_workers.front();
+            DLOG(INFO) << "yoyo job receiver is "
+                    << job_receiver << std::endl;
             DLOG(INFO) << 3 << std::endl;
             mstate.idle_workers.pop();
             DLOG(INFO) << 4 << std::endl;
