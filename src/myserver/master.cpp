@@ -128,18 +128,17 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     std::string job = req.get_arg("cmd");
 
     if (job == "projectidea") {
-        mstate.worker_roster[worker_handle].processing_cached_job = false;
+        wstate.processing_cached_job = false;
     }
 
-    if (job != "tellmenow") mstate.worker_roster[worker_handle].job_count--;
-    else mstate.worker_roster[worker_handle].instant_job_count--;
+    if (job != "tellmenow") wstate.job_count--;
+    else wstate.instant_job_count--;
 
     send_client_response(client, resp);
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
-    if (mstate.worker_roster[worker_handle].job_count == 0 &&
-            mstate.worker_roster[worker_handle].instant_job_count == 0) {
+    if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
         mstate.idle_workers.push(worker_handle);
     }
 }
