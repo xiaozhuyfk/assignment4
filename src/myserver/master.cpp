@@ -562,7 +562,6 @@ void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
         wstate.idle_time = 0;
         send_request_to_worker(worker, req);
     } else if (req.get_arg("cmd") == "projectidea") {
-        mstate.idle_workers.pop();
         wstate.processing_cached_job = true;
         wstate.job_count++;
         wstate.idle_time = 0;
