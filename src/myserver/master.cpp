@@ -37,7 +37,6 @@ void request_new_worker(std::string name);
 struct Worker_state {
         int job_count;
         int instant_job_count;
-        int idle_time;
         bool processing_cached_job;
 };
 
@@ -51,6 +50,8 @@ static struct Master_state {
         bool server_ready;
         int max_num_workers;
         int next_tag;
+
+        int requested_workers;
 
         // all workers alive
         std::map<Worker_handle, Worker_state> worker_roster;
@@ -75,6 +76,7 @@ void master_node_init(int max_workers, int& tick_period) {
 
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
+    mstate.requested_workers = 1;
 
     // don't mark the server as ready until the server is ready to go.
     // This is actually when the first worker is up and running, not
@@ -91,9 +93,9 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     // corresponds to.  Since the starter code only sends off one new
     // worker request, we don't use it here.
 
+    mstate.requested_workers--;
     mstate.worker_roster[worker_handle].job_count = 0;
     mstate.worker_roster[worker_handle].instant_job_count = 0;
-    mstate.worker_roster[worker_handle].idle_time = 0;
     mstate.worker_roster[worker_handle].processing_cached_job = false;
     mstate.idle_workers.push(worker_handle);
 
@@ -122,6 +124,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     int tag = resp.get_tag();
     Request_msg req = mstate.request_mapping[tag];
     Client_handle client = mstate.client_mapping[tag];
+    Worker_state& wstate = mstate.worker_roster[worker_handle];
     std::string job = req.get_arg("cmd");
 
     if (job == "projectidea") {
@@ -169,7 +172,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     if (worker_req.get_arg("cmd") == "tellmenow") {
         Worker_handle job_receiver = mstate.worker_roster.begin()->first;
         mstate.worker_roster[job_receiver].instant_job_count++;
-        mstate.worker_roster[job_receiver].idle_time = 0;
         send_request_to_worker(job_receiver, worker_req);
     } else if (worker_req.get_arg("cmd") == "projectidea") {
         if (mstate.idle_workers.size() == 0) {
@@ -182,7 +184,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.idle_workers.pop();
             mstate.worker_roster[job_receiver].processing_cached_job = true;
             mstate.worker_roster[job_receiver].job_count++;
-            mstate.worker_roster[job_receiver].idle_time = 0;
             send_request_to_worker(job_receiver, worker_req);
         }
     } else {
@@ -191,7 +192,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.pending_requests.push(tag);
         } else {
             mstate.worker_roster[job_receiver].job_count++;
-            mstate.worker_roster[job_receiver].idle_time = 0;
             send_request_to_worker(job_receiver, worker_req);
         }
     }
@@ -219,7 +219,6 @@ void handle_tick() {
                 mstate.idle_workers.pop();
                 mstate.worker_roster[job_receiver].processing_cached_job = true;
                 mstate.worker_roster[job_receiver].job_count++;
-                mstate.worker_roster[job_receiver].idle_time = 0;
                 send_request_to_worker(job_receiver, req);
                 mstate.pending_requests.pop();
             }
@@ -229,7 +228,6 @@ void handle_tick() {
                 break;
             } else {
                 mstate.worker_roster[job_receiver].job_count++;
-                mstate.worker_roster[job_receiver].idle_time = 0;
                 send_request_to_worker(job_receiver, req);
                 mstate.pending_requests.pop();
             }
@@ -275,6 +273,7 @@ void request_new_worker(std::string name) {
     Request_msg req(tag);
     req.set_arg("name", name);
     request_new_worker_node(req);
+    mstate.requested_workers++;
 }
 
 
