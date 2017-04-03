@@ -507,6 +507,7 @@ void distribute_job(Request_msg& req) {
         } else {
             DLOG(INFO) << 4 << std::endl;
             Worker_handle job_receiver = mstate.idle_workers.front();
+            DLOG(INFO) << mstate.worker_roster[job_receiver].work_estimate[1] << std::endl;
             DLOG(INFO) << 5 << std::endl;
             mstate.idle_workers.pop();
             DLOG(INFO) << 5.1 << std::endl;
@@ -516,7 +517,7 @@ void distribute_job(Request_msg& req) {
             DLOG(INFO) << 5.3 << std::endl;
             mstate.worker_roster[job_receiver].idle_time = 0;
             DLOG(INFO) << 5.4 << std::endl;
-            DLOG(INFO) << mstate.worker_roster[job_receiver].work_estimate << std::endl;
+
             mstate.worker_roster[job_receiver].work_estimate[1] +=
                     work_estimate(req);
             DLOG(INFO) << 6 << std::endl;
