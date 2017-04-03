@@ -482,6 +482,10 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
 
 void distribute_job(Request_msg& req) {
+    DLOG(WARNING) << "Distribute job "
+            << req.get_request_string()
+            << std::endl;
+
     int tag = req.get_tag() / 100;
 
     if (req.get_arg("cmd") == "tellmenow") {
