@@ -415,20 +415,16 @@ void handle_tick() {
     */
 
     // discard idle workers
-    /*
-    while (mstate.worker_roster.size() > 0) {
+    while (mstate.worker_roster.size() > 1) {
         Worker_handle worker = mstate.idle_workers.front();
         Worker_state& wstate = mstate.worker_roster[worker];
         if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-            mstate.worker_roster[worker].idle_time++;
-            if (mstate.worker_roster[worker].idle_time > 3) {
-                mstate.idle_workers.pop();
-                mstate.worker_roster.erase(worker);
-                kill_worker_node(worker);
-            }
+            mstate.idle_workers.pop();
+            mstate.worker_roster.erase(worker);
+            kill_worker_node(worker);
+            break;
         }
     }
-    */
 }
 
 
