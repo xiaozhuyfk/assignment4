@@ -75,7 +75,7 @@ static struct Master_state {
 
 void master_node_init(int max_workers, int& tick_period) {
 
-    tick_period = 1;
+    tick_period = 2;
 
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
