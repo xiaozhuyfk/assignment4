@@ -427,7 +427,7 @@ void handle_tick() {
     /*
     while (mstate.worker_roster.size() > 0) {
         Worker_handle worker = mstate.idle_workers.front();
-        Worker_state wstate = mstate.worker_roster[worker];
+        Worker_state& wstate = mstate.worker_roster[worker];
         if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
             mstate.worker_roster[worker].idle_time++;
             if (mstate.worker_roster[worker].idle_time > 3) {
