@@ -252,7 +252,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         Cache_key k;
         k.cmd = job;
         k.x = (job == "countprimes") ? req.get_arg("n") : req.get_arg("x");
-        mstate.cache_map[k] = resp;
+        mstate.cache_map[req.get_request_string()] = resp;
     }
 }
 
