@@ -79,7 +79,8 @@ struct Cache_key {
     }
 
     bool operator<(const Cache_key &o) const {
-        return atoi(x.c_str()) < atoi(o.x.c_str());
+        if (cmd < o.cmd) return true;
+        if (cmd > o.cmd) return false;
     }
 };
 
@@ -114,8 +115,7 @@ static struct Master_state {
         std::queue<int> pending_cached_jobs;
 
         // cache map
-        // std::map<Cache_key, Response_msg> cache_map;
-        std::map<std::string, Response_msg> cache_map;
+        std::map<Cache_key, Response_msg> cache_map;
 
         // compare_prime map from tag to Request_msg
         std::map<int, std::vector<Response_msg>> cmp_prime_map;
@@ -252,7 +252,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         Cache_key k;
         k.cmd = job;
         k.x = (job == "countprimes") ? req.get_arg("n") : req.get_arg("x");
-        mstate.cache_map[req.get_request_string()] = resp;
+        mstate.cache_map[k] = resp;
     }
 }
 
@@ -316,8 +316,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.tag_head_map[cmp_tag] = tag;
 
             // Check if the request is cached
-            if (mstate.cache_map.find(dummy_req.get_request_string()) != mstate.cache_map.end()) {
-                Response_msg resp = mstate.cache_map[dummy_req.get_request_string()];
+            if (mstate.cache_map.find(cmp_test_key) != mstate.cache_map.end()) {
+                Response_msg resp = mstate.cache_map[cmp_test_key];
                 mstate.cmp_prime_map[tag][i] = resp;
             } else {
                 all_cached_flag = false;
@@ -341,8 +341,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
                 worker_req.get_arg("x");
 
         // Check if the request is cached
-        if (mstate.cache_map.find(worker_req.get_request_string()) != mstate.cache_map.end()) {
-            Response_msg resp = mstate.cache_map[worker_req.get_request_string()];
+        if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
+            Response_msg resp = mstate.cache_map[test_key];
             send_client_response(client_handle, resp);
         // if it is an instant job, send to worker directly
         } else {
