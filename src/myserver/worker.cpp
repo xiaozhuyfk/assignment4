@@ -117,7 +117,7 @@ void worker_handle_request(const Request_msg& req) {
                 << req.get_request_string()
                 << "]\n";
 
-    if (req.get_arg("cmd") == "tellmenow")
+    if (req.get_arg("cmd").compare("tellmenow") == 0)
         wstate.instant_job_queue.put_work(req);
     else
         wstate.normal_job_queue.put_work(req);

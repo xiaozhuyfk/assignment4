@@ -131,12 +131,12 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     Worker_state& wstate = mstate.worker_roster[worker_handle];
     std::string job = req.get_arg("cmd");
 
-    if (job == "projectidea") {
+    if (job.compare("projectidea") == 0) {
         wstate.processing_cached_job = false;
     }
 
-    if (job != "tellmenow") wstate.job_count--;
-    else wstate.instant_job_count--;
+    if (job.compare("tellmenow") == 0) wstate.instant_job_count--;
+    else wstate.job_count--;
 
     send_client_response(client, resp);
     mstate.client_mapping.erase(tag);
@@ -171,13 +171,13 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     mstate.request_mapping[tag] = worker_req;
 
     // instant job, send to worker directory
-    if (worker_req.get_arg("cmd") == "tellmenow") {
+    if (worker_req.get_arg("cmd").compare("tellmenow") == 0) {
         Worker_handle job_receiver = mstate.worker_roster.begin()->first;
         mstate.worker_roster[job_receiver].instant_job_count++;
         send_request_to_worker(job_receiver, worker_req);
     }
     // cached job, send to idle worker or append to queue
-    else if (worker_req.get_arg("cmd") == "projectidea") {
+    else if (worker_req.get_arg("cmd").compare("projectidea") == 0) {
         if (mstate.idle_workers.size() == 0) {
             if (mstate.worker_roster.size() < mstate.max_num_workers) {
                 request_new_worker("cached job");
@@ -325,6 +325,7 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
         if (wstate.job_count < minimum_work) {
             receiver = worker;
+            minimum_work = wstate.job_count;
         }
     }
 
