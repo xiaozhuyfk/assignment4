@@ -1,304 +1,434 @@
 #include <glog/logging.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <limits.h>
-#include <assert.h>
-
-#include <map>
-#include <vector>
+#include <unordered_map>
+#include <sstream>
 #include <queue>
+#include <stack>
+#include <iterator>
 
 #include "server/messages.h"
 #include "server/master.h"
-#include "tools/work_queue.h"
 
+#define MAX_REQUESTS 27
+#define MAX_THREADS 23
+#define MAX_QUEUE_LENGTH 25
+#define BIG_INT 999999
 
-#define NUM_THREADS 24
-#define JOB_COUNT_THREASHOLD 48
-#define WORK_THREASHOLD 200
+typedef struct {
+  int first_tag;
+  int finished_count;
+  int n[4];
+} Crequest;
 
-
-/*
- * Helper function headers
- */
-
-Worker_handle find_best_receiver(Request_msg& req);
-
-void request_new_worker(std::string name);
-
-
-/*
- * Master server routine
- */
-
-struct Worker_state {
-        int job_count;
-        int instant_job_count;
-        bool processing_cached_job;
-};
+typedef struct {
+  int request_num;
+  bool pending_projectidea;
+} Wstate;
 
 static struct Master_state {
 
-        // The mstate struct collects all the master node state into one
-        // place.  You do not need to preserve any of the fields below, they
-        // exist only to implement the basic functionality of the starter
-        // code.
+  // The mstate struct collects all the master node state into one
+  // place.  You do not need to preserve any of the fields below, they
+  // exist only to implement the basic functionality of the starter
+  // code.
+  bool server_ready;
+  unsigned int max_num_workers;
+  int next_tag;
+  int pending_worker_num;
 
-        bool server_ready;
-        int max_num_workers;
-        int next_tag;
+  // queue of holding requests
+  std::queue<Request_msg> holding_requests;
+  std::stack<Request_msg> projectidea_requests;
 
-        int requested_workers;
-
-        // all workers alive
-        std::map<Worker_handle, Worker_state> worker_roster;
-
-        // tag-client map
-        std::map<int, Client_handle> client_mapping;
-
-        // tag-request map
-        std::map<int, Request_msg> request_mapping;
-
-        // queue of idle workers (no current jobs)
-        std::queue<Worker_handle> idle_workers;
-
-        // queue of requests that not assigned to workers
-        std::queue<int> pending_requests;
-
-        // queue of projectidea requests that not assigned to workers
-        std::queue<int> pending_cached_jobs;
-
+  // count of pending requests
+  std::unordered_map<Worker_handle, Wstate> my_workers;
+  std::unordered_map<int, Request_msg> request_msgs;
+  std::unordered_map<int, Client_handle> waiting_clients;
+  std::unordered_map<std::string, Response_msg> cached_responses;
+  std::unordered_map<int, Crequest*> compareprimes_requests;
 } mstate;
+
+// Generate a valid 'countprimes' request dictionary from integer 'n'
+static void create_computeprimes_req(Request_msg& req, int n) {
+  std::ostringstream oss;
+  oss << n;
+  req.set_arg("cmd", "countprimes");
+  req.set_arg("n", oss.str());
+}
+
+void assign_request(const Request_msg&);
+
+// -----------------------------------------------------------------------
 
 void master_node_init(int max_workers, int& tick_period) {
 
-    tick_period = 2;
+  // set up tick handler to fire every 5 seconds. (feel free to
+  // configure as you please)
+  tick_period = 1;
 
-    mstate.next_tag = 0;
-    mstate.max_num_workers = max_workers;
-    mstate.requested_workers = 1;
+  mstate.next_tag = 0;
+  mstate.pending_worker_num = 0;
+  mstate.max_num_workers = max_workers;
 
-    // don't mark the server as ready until the server is ready to go.
-    // This is actually when the first worker is up and running, not
-    // when 'master_node_init' returnes
-    mstate.server_ready = false;
+  // don't mark the server as ready until the server is ready to go.
+  // This is actually when the first worker is up and running, not
+  // when 'master_node_init' returnes
+  mstate.server_ready = false;
 
-    // fire off a request for a new worker
-    //for (int i = 0; i < max_workers; i++)
-    request_new_worker("master_node_init");
+  // fire off a request for a new worker
+  int tag = random();
+  Request_msg req(tag);
+  req.set_arg("name", "my worker 0");
+  request_new_worker_node(req);
+  // increase number of pending worker
+  mstate.pending_worker_num++;
 }
 
 void handle_new_worker_online(Worker_handle worker_handle, int tag) {
 
-    // 'tag' allows you to identify which worker request this response
-    // corresponds to.  Since the starter code only sends off one new
-    // worker request, we don't use it here.
+  // 'tag' allows you to identify which worker request this response
+  // corresponds to.  Since the starter code only sends off one new
+  // worker request, we don't use it here.
+  // decrease pending worker num
+  mstate.pending_worker_num--;
 
-    mstate.requested_workers--;
-    mstate.worker_roster[worker_handle].job_count = 0;
-    mstate.worker_roster[worker_handle].instant_job_count = 0;
-    mstate.worker_roster[worker_handle].processing_cached_job = false;
-    mstate.idle_workers.push(worker_handle);
+  // register new worker
+  mstate.my_workers[worker_handle].request_num = 0;
+  mstate.my_workers[worker_handle].pending_projectidea = false;
 
-    // Now that a worker is booted, let the system know the server is
-    // ready to begin handling client requests.  The test harness will
-    // now start its timers and start hitting your server with requests.
-    if (mstate.server_ready == false) {
-        server_init_complete();
-        mstate.server_ready = true;
-    }
+  // empty holding queue
+  while(mstate.holding_requests.size() > 0) {
+    send_request_to_worker(worker_handle, mstate.holding_requests.front());
+    mstate.my_workers[worker_handle].request_num++;
+    mstate.holding_requests.pop();
+  }
+
+  // Now that a worker is booted, let the system know the server is
+  // ready to begin handling client requests.  The test harness will
+  // now start its timers and start hitting your server with requests.
+  if (mstate.server_ready == false) {
+    server_init_complete();
+    mstate.server_ready = true;
+  }
 }
-
 
 void handle_worker_response(Worker_handle worker_handle, const Response_msg& resp) {
 
-    // Master node has received a response from one of its workers.
-    // Here we directly return this response to the client.
+  // Master node has received a response from one of its workers.
+  mstate.my_workers[worker_handle].request_num--;
 
-    DLOG(INFO) << "Master received a response from a worker: ["
-            << resp.get_tag()
-            << ":"
-            << resp.get_response()
-            << "]"
-            << std::endl;
+  if (mstate.request_msgs[resp.get_tag()].get_arg("cmd") == "projectidea") {
+    mstate.my_workers[worker_handle].pending_projectidea = false;
+  }
 
-    int tag = resp.get_tag();
-    Request_msg req = mstate.request_mapping[tag];
-    Client_handle client = mstate.client_mapping[tag];
-    Worker_state& wstate = mstate.worker_roster[worker_handle];
-    std::string job = req.get_arg("cmd");
+  if (mstate.compareprimes_requests.count(resp.get_tag())) {
+    Crequest* crequest = mstate.compareprimes_requests[resp.get_tag()];
+    crequest->finished_count++;
+    crequest->n[resp.get_tag() - crequest->first_tag] = atoi(resp.get_response().c_str());
+    mstate.compareprimes_requests.erase(resp.get_tag());
+    mstate.cached_responses[mstate.request_msgs[resp.get_tag()].get_request_string()] = resp;
 
-    if (job.compare("projectidea") == 0) {
-        wstate.processing_cached_job = false;
+    // if dummy requests all finished, send respond
+    if (crequest->finished_count == 4) {
+      Response_msg new_resp(crequest->first_tag);
+      if (crequest->n[1] - crequest->n[0] > crequest->n[3] - crequest->n[2])
+        new_resp.set_response("There are more primes in first range.");
+      else
+        new_resp.set_response("There are more primes in second range.");
+
+      send_client_response(mstate.waiting_clients[crequest->first_tag], new_resp);
+      mstate.waiting_clients.erase(crequest->first_tag);
+      delete crequest;
     }
-
-    if (job.compare("tellmenow") == 0) wstate.instant_job_count--;
-    else wstate.job_count--;
-
-    send_client_response(client, resp);
-    mstate.client_mapping.erase(tag);
-    mstate.request_mapping.erase(tag);
-
-    if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-        mstate.idle_workers.push(worker_handle);
-    }
+    mstate.request_msgs.erase(resp.get_tag());
+  } else {
+    send_client_response(mstate.waiting_clients[resp.get_tag()], resp);
+    // cache
+    mstate.cached_responses[mstate.request_msgs[resp.get_tag()].get_request_string()] = resp;
+    // delete
+    mstate.request_msgs.erase(resp.get_tag());
+    mstate.waiting_clients.erase(resp.get_tag());
+  }
 }
-
 
 void handle_client_request(Client_handle client_handle, const Request_msg& client_req) {
 
-    DLOG(INFO) << "Received request: "
-            << client_req.get_request_string()
-            << std::endl;
+  DLOG(INFO) << "Received request: " << client_req.get_request_string() << std::endl;
 
-    // You can assume that traces end with this special message.  It
-    // exists because it might be useful for debugging to dump
-    // information about the entire run here: statistics, etc.
-    if (client_req.get_arg("cmd") == "lastrequest") {
-        Response_msg resp(0);
-        resp.set_response("ack");
-        send_client_response(client_handle, resp);
-        return;
+  // You can assume that traces end with this special message.  It
+  // exists because it might be useful for debugging to dump
+  // information about the entire run here: statistics, etc.
+  if (client_req.get_arg("cmd") == "lastrequest") {
+    Response_msg resp(0);
+    resp.set_response("ack");
+    send_client_response(client_handle, resp);
+    return;
+  }
+
+  // if request is compareprimes, split into four requests
+  if (client_req.get_arg("cmd").compare("compareprimes") == 0) {
+    int params[4];
+
+    // grab the four arguments defining the two ranges
+    params[0] = atoi(client_req.get_arg("n1").c_str());
+    params[1] = atoi(client_req.get_arg("n2").c_str());
+    params[2] = atoi(client_req.get_arg("n3").c_str());
+    params[3] = atoi(client_req.get_arg("n4").c_str());
+
+    // four dummy request shared the same crequest struct
+    Crequest* crequest = new Crequest;
+    crequest->first_tag = mstate.next_tag;
+    crequest->finished_count = 0;
+    mstate.waiting_clients[mstate.next_tag] = client_handle;
+
+    // create new requests
+    for (int i=0; i<4; i++) {
+      // update tag
+      int tag = mstate.next_tag++;
+      // create dummy request
+      Request_msg dummy_req(tag);
+      create_computeprimes_req(dummy_req, params[i]);
+
+      // check cache
+      if (mstate.cached_responses.count(dummy_req.get_request_string())) {
+        Response_msg resp(tag);
+        // update crequest
+        resp.set_response(mstate.cached_responses[dummy_req.get_request_string()].get_response());
+        crequest->finished_count++;
+        crequest->n[i] = atoi(resp.get_response().c_str());
+      } else {
+        // save requst string to the map
+        mstate.request_msgs[tag] = dummy_req;
+        // save request to the map
+        mstate.compareprimes_requests[tag] = crequest;
+        // send request
+        assign_request(dummy_req);
+      }
     }
 
-    // create worker request
+    // if all parts are completed, create response
+    if (crequest->finished_count == 4) {
+      Response_msg resp(crequest->first_tag);
+
+      if (crequest->n[1] - crequest->n[0] > crequest->n[3] - crequest->n[2])
+        resp.set_response("There are more primes in first range.");
+      else
+        resp.set_response("There are more primes in second range.");
+
+      send_client_response(client_handle, resp);
+      delete crequest;
+    } else { // wait
+      // save client_handle and wait
+      mstate.waiting_clients[crequest->first_tag] = client_handle;
+    }
+
+  } else if (mstate.cached_responses.count(client_req.get_request_string())) {
+    Response_msg resp(mstate.next_tag++);
+    resp.set_response(mstate.cached_responses[client_req.get_request_string()].get_response());
+    send_client_response(client_handle, resp);
+  } else {
+    // New tag
     int tag = mstate.next_tag++;
+    // Save off the handle to the client that is expecting a response.
+    // The master needs to do this it can response to this client later
+    // when 'handle_worker_response' is called.
+    mstate.waiting_clients[tag] = client_handle;
+    mstate.request_msgs[tag] = client_req;
+
+    // Fire off the request to the worker.  Eventually the worker will
+    // respond, and your 'handle_worker_response' event handler will be
+    // called to forward the worker's response back to the server.
     Request_msg worker_req(tag, client_req);
-    mstate.client_mapping[tag] = client_handle;
-    mstate.request_mapping[tag] = worker_req;
+    assign_request(worker_req);
+  }
 
-    // instant job, send to worker directory
-    if (worker_req.get_arg("cmd").compare("tellmenow") == 0) {
-        Worker_handle job_receiver = mstate.worker_roster.begin()->first;
-        mstate.worker_roster[job_receiver].instant_job_count++;
-        send_request_to_worker(job_receiver, worker_req);
+  // We're done!  This event handler now returns, and the master
+  // process calls another one of your handlers when action is
+  // required.
+}
+
+int count_idle_threads() {
+  int count = 0;
+  for (auto& w: mstate.my_workers) {
+    if (w.second.request_num < MAX_THREADS) {
+      count += MAX_THREADS - w.second.request_num;
     }
-    // cached job, send to idle worker or append to queue
-    else if (worker_req.get_arg("cmd").compare("projectidea") == 0) {
-        if (mstate.idle_workers.size() == 0) {
-            if (mstate.worker_roster.size() < mstate.max_num_workers) {
-                request_new_worker("cached job");
-            }
-            mstate.pending_requests.push(tag);
-        } else {
-            Worker_handle job_receiver = mstate.idle_workers.front();
-            mstate.idle_workers.pop();
-            mstate.worker_roster[job_receiver].processing_cached_job = true;
-            mstate.worker_roster[job_receiver].job_count++;
-            send_request_to_worker(job_receiver, worker_req);
-        }
+  }
+  return count;
+}
+
+int count_avalible_queue() {
+  int count = 0;
+  for (auto& w: mstate.my_workers) {
+    if (w.second.request_num < MAX_REQUESTS) {
+      count += MAX_REQUESTS - w.second.request_num;
+    }
+  }
+  return count;
+}
+
+void send_request_to_best_worker(const Request_msg& req) {
+  int idle_count = count_idle_threads();
+  if (idle_count > 0) { // there is a idle threads
+    Worker_handle worker_handle = mstate.my_workers.begin()->first;
+    int t_num = 0;
+    for (auto& w: mstate.my_workers) {
+      if (w.second.request_num < MAX_THREADS && t_num < w.second.request_num) {
+        // send request to the worker with least idle threads
+        worker_handle = w.first;
+        t_num = w.second.request_num;
+      }
+    }
+    send_request_to_worker(worker_handle, req);
+    mstate.my_workers[worker_handle].request_num++;
+  } else { // there is no idle threads
+    // send request to the least busy worker
+    Worker_handle worker_handle = mstate.my_workers.begin()->first;
+    int t_num = BIG_INT; // big number
+    for (auto& w: mstate.my_workers) {
+      if (w.second.request_num < t_num) {
+        // send request to the worker with least idle threads
+        worker_handle = w.first;
+        t_num = w.second.request_num;
+      }
+    }
+    send_request_to_worker(worker_handle, req);
+    mstate.my_workers[worker_handle].request_num++;
+  }
+}
+
+int count_no_projectidea() {
+  // count the number of workers that are not running projectidea
+  int count = 0;
+  for (auto& w: mstate.my_workers) {
+    if (!w.second.pending_projectidea) {
+      count++;
+    }
+  }
+  return count;
+}
+
+void send_projectidea() {
+  int count = count_no_projectidea();
+  while (count > 0 && mstate.projectidea_requests.size() > 0) {
+    count--;
+    int t_num = BIG_INT; // big number
+    Worker_handle worker_handle = mstate.my_workers.begin()->first;
+    // find the least busy worker
+    for (auto& w: mstate.my_workers) {
+      if (!w.second.pending_projectidea && w.second.request_num < t_num) {
+        worker_handle = w.first;
+        t_num = w.second.request_num;
+      }
+    }
+    send_request_to_worker(worker_handle, mstate.projectidea_requests.top());
+    mstate.projectidea_requests.pop();
+    mstate.my_workers[worker_handle].request_num++;
+    mstate.my_workers[worker_handle].pending_projectidea = true;
+  }
+}
+
+void assign_request(const Request_msg& req) {
+  if (req.get_arg("cmd") == "tellmenow") { // fire instantly
+    auto w = mstate.my_workers.begin();
+    send_request_to_worker(w->first, req);
+    w->second.request_num++;
+  } else if (req.get_arg("cmd") == "projectidea"){
+    mstate.projectidea_requests.push(req);
+    send_projectidea();
+    if (mstate.projectidea_requests.size() > 3
+        && mstate.my_workers.size() < mstate.max_num_workers
+        && mstate.pending_worker_num == 0) {
+      int tag = random();
+      Request_msg req(tag);
+      req.set_arg("name", "my worker 0");
+      request_new_worker_node(req);
+      // increase number of pending worker
+      mstate.pending_worker_num++;
+    }
+  } else {
+    // if workers' number is at max
+    if (mstate.my_workers.size() == mstate.max_num_workers) {
+      // fire request
+      send_request_to_best_worker(req);
     } else {
-        Worker_handle job_receiver = find_best_receiver(worker_req);
-        if (job_receiver == NULL) {
-            mstate.pending_requests.push(tag);
+      // decide whether to queue or fire
+      int idle_count = count_idle_threads();
+      // have avalible workers
+      if (idle_count > 0) {
+        // check if there is request in the holding queue
+        if (mstate.holding_requests.size() > 0) {
+          // push the request into the back of the queue
+          mstate.holding_requests.push(req);
+          while(idle_count > 0 && mstate.holding_requests.size() > 0) {
+            // send queued reqs
+            send_request_to_best_worker(mstate.holding_requests.front());
+            mstate.holding_requests.pop();
+            idle_count--;
+          }
         } else {
-            mstate.worker_roster[job_receiver].job_count++;
-            send_request_to_worker(job_receiver, worker_req);
+          // fire instantly
+          send_request_to_best_worker(req);
         }
+      } else {
+        // !!!!! if overload too much should allow init more than one worker
+        // fire off a request for a new worker
+        if (mstate.pending_worker_num == 0) { // init a new worker
+          int tag = random();
+          Request_msg req(tag);
+          req.set_arg("name", "my worker 0");
+          request_new_worker_node(req);
+          // increase number of pending worker
+          mstate.pending_worker_num++;
+        }
+
+        int avalible_queue = count_avalible_queue();
+        if (avalible_queue > 0) {
+          // check if there is request in the holding queue
+          if (mstate.holding_requests.size() > 0) {
+            // push the request into the back of the queue
+            mstate.holding_requests.push(req);
+            while(avalible_queue > 0 && mstate.holding_requests.size() > 0) {
+              // send queued reqs
+              send_request_to_best_worker(mstate.holding_requests.front());
+              mstate.holding_requests.pop();
+              avalible_queue--;
+            }
+          } else {
+            // fire instantly
+            send_request_to_best_worker(req);
+          }
+        } else { // workers are all overload
+          mstate.holding_requests.push(req); // cache the request in queue
+          if (mstate.holding_requests.size() > MAX_QUEUE_LENGTH) {
+            // queue too long
+            send_request_to_best_worker(mstate.holding_requests.front());
+            mstate.holding_requests.pop();
+          }
+        }
+      }
     }
-
-    // We're done!  This event handler now returns, and the master
-    // process calls another one of your handlers when action is
-    // required.
-
+  }
 }
 
 void handle_tick() {
 
-    // TODO: you may wish to take action here.  This method is called at
-    // fixed time intervals, according to how you set 'tick_period' in
-    // 'master_node_init'.
+  // This method is called at fixed time intervals,
+  // according to how you set 'tick_period' in 'master_node_init'.
 
-    /*
-    while (mstate.pending_requests.size() > 0) {
-        int tag = mstate.pending_requests.front();
-        Request_msg req = mstate.request_mapping[tag];
-        if (req.get_arg("cmd") == "projectidea") {
-            if (mstate.idle_workers.size() == 0) {
-                break;
-            } else {
-                Worker_handle job_receiver = mstate.idle_workers.front();
-                mstate.idle_workers.pop();
-                mstate.worker_roster[job_receiver].processing_cached_job = true;
-                mstate.worker_roster[job_receiver].job_count++;
-                send_request_to_worker(job_receiver, req);
-                mstate.pending_requests.pop();
-            }
-        } else {
-            Worker_handle job_receiver = find_best_receiver(req);
-            if (job_receiver == NULL) {
-                break;
-            } else {
-                mstate.worker_roster[job_receiver].job_count++;
-                send_request_to_worker(job_receiver, req);
-                mstate.pending_requests.pop();
-            }
-        }
+  // send projectidea requests
+  send_projectidea();
+
+  // kill idle workers
+  if (mstate.my_workers.size() > 1) {
+    for (auto& w: mstate.my_workers) {
+      if (w.second.request_num == 0) {
+        kill_worker_node(w.first);
+        Worker_handle wh = w.first;
+        mstate.my_workers.erase(wh);
+        break;
+      }
     }
-    */
-
-    // request new workers
-    /*
-    if (mstate.worker_roster.size() + mstate.requested_workers
-            < mstate.max_num_workers) {
-        int min_job_count = INT_MAX;
-        for (auto const &pair : mstate.worker_roster) {
-            Worker_state wstate = pair.second;
-            if (wstate.job_count < min_job_count)
-                min_job_count = wstate.job_count;
-        }
-
-        if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
-            request_new_worker("overload");
-    }
-    */
-
-    /*
-    // discard idle workers
-    if (mstate.worker_roster.size() > 0) {
-        Worker_handle worker = mstate.idle_workers.front();
-        Worker_state wstate = mstate.worker_roster[worker];
-        if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-            DLOG(INFO) << "enter here" << std::endl;
-            mstate.idle_workers.pop();
-            mstate.worker_roster.erase(worker);
-            kill_worker_node(worker);
-        }
-    }
-    */
+  }
 }
-
-
-
-/*
- * Helper functions
- */
-
-void request_new_worker(std::string name) {
-    int tag = random();
-    Request_msg req(tag);
-    req.set_arg("name", name);
-    request_new_worker_node(req);
-    mstate.requested_workers++;
-}
-
-Worker_handle find_best_receiver(Request_msg& req) {
-    int minimum_work = INT_MAX;
-    Worker_handle receiver = NULL;
-
-    for (auto &pair : mstate.worker_roster) {
-        Worker_handle worker = pair.first;
-        Worker_state& wstate = pair.second;
-
-        if (wstate.processing_cached_job) continue;
-
-        if (wstate.job_count < minimum_work) {
-            receiver = worker;
-            minimum_work = wstate.job_count;
-        }
-    }
-
-    return receiver;
-}
-
