@@ -30,6 +30,13 @@ Worker_handle find_best_receiver(Request_msg& req);
 
 void request_new_worker(std::string name);
 
+// Generate a valid 'countprimes' request dictionary from integer 'n'
+static void create_computeprimes_req(Request_msg& req, int n) {
+    std::ostringstream oss;
+    oss << n;
+    req.set_arg("cmd", "countprimes");
+    req.set_arg("n", oss.str());
+}
 
 /*
  * Master server routine
@@ -41,6 +48,23 @@ struct Worker_state {
         int idle_time;
         bool processing_cached_job;
         std::vector<int> work_estimate;
+};
+
+
+/*
+ * Struct for cache keys
+ */
+struct Cache_key {
+    std::string cmd;
+    std::string x;
+
+    bool operator==(const Cache_key &o) {
+        return cmd == o.cmd && x == o.x;
+    }
+
+    bool operator<(const Cache_key &o) const {
+        return atoi(x.c_str()) < atoi(o.x.c_str());
+    }
 };
 
 static struct Master_state {
@@ -69,8 +93,18 @@ static struct Master_state {
         // queue of requests that not assigned to workers
         std::queue<int> pending_requests;
 
+
         // queue of cached jobs that not assigned to workers
         std::queue<int> pending_cached_jobs;
+
+        // cache map
+        std::map<Cache_key, Response_msg> cache_map;
+
+        // compare_prime map from tag to Request_msg
+        std::map<int, std::vector<Response_msg>> cmp_prime_map;
+
+        // find the head tag for compare_prime request
+        std::map<int, int> tag_head_map;
 
 } mstate;
 
@@ -139,12 +173,32 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     if (job != "tellmenow") mstate.worker_roster[worker_handle].job_count--;
     else mstate.worker_roster[worker_handle].instant_job_count--;
+
     mstate.worker_roster[worker_handle].work_estimate[thread_id] -= work_estimate(req);
 
     if (job != "tellmenow")
         assert(mstate.worker_roster[worker_handle].work_estimate[thread_id] == 0);
 
-    send_client_response(client, resp);
+    // Deal with compare prime response
+    if (mstate.tag_head_map.find(tag) != mstate.tag_head_map.end()) {
+        int tag_head = mstate.tag_head_map[tag];
+        mstate.cmp_prime_map[tag_head][tag-tag_head-1] = resp;
+        bool prime_all_finish = true;
+        for (Response_msg r : mstate.cmp_prime_map[tag_head]) {
+            if (r.get_tag() == -1) {
+                prime_all_finish = false;
+                break;
+            }
+        }
+        if (prime_all_finish) {
+            Response_msg cmp_prime_resp(tag_head);
+            compute_cmp_prime_resp(tag_head, cmp_prime_resp, mstate.cmp_prime_map[tag_head]);
+            send_client_response(client, cmp_prime_resp);
+        }
+    } else {
+        send_client_response(client, resp);
+    }
+
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
@@ -165,6 +219,12 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     if (mstate.worker_roster[worker_handle].job_count == 0 &&
             mstate.worker_roster[worker_handle].instant_job_count == 0) {
         mstate.idle_workers.push(worker_handle);
+    }
+    if (job != "compareprimes") {
+        Cache_key k;
+        k.cmd = job;
+        k.x = (job == "countprimes") ? req.get_arg("n") : req.get_arg("x");
+        mstate.cache_map[k] = resp;
     }
 }
 
@@ -188,49 +248,118 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     // Fire off the request to the worker.  Eventually the worker will
     // respond, and your 'handle_worker_response' event handler will be
     // called to forward the worker's response back to the server.
-    int tag = mstate.next_tag++;
+    int tag = mstate.next_tag;
     Request_msg worker_req(tag * 100, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
 
-    if (worker_req.get_arg("cmd") == "tellmenow") {
-        Worker_handle job_receiver = mstate.worker_roster.begin()->first;
-        worker_req.set_thread_id(0);
-        mstate.worker_roster[job_receiver].instant_job_count++;
-        mstate.worker_roster[job_receiver].work_estimate[0]++;
-        mstate.worker_roster[job_receiver].idle_time = 0;
-        send_request_to_worker(job_receiver, worker_req);
-    } else if (worker_req.get_arg("cmd") == "projectidea") {
-        if (mstate.idle_workers.size() == 0) {
-            if (mstate.worker_roster.size() < mstate.max_num_workers) {
-                request_new_worker("cached job");
+    mstate.next_tag = (client_req.get_arg("cmd") == "compareprimes") ? mstate.next_tag+5 : mstate.next_tag+1;
+
+    if (worker_req.get_arg("cmd") == "compareprimes") {
+        int params[4];
+        int cmp_tag = tag+1;
+
+        // grab the four arguments defining the two ranges
+        params[0] = atoi(worker_req.get_arg("n1").c_str());
+        params[1] = atoi(worker_req.get_arg("n2").c_str());
+        params[2] = atoi(worker_req.get_arg("n3").c_str());
+        params[3] = atoi(worker_req.get_arg("n4").c_str());
+
+        std::vector<Response_msg> r_msg(4, -1);
+        mstate.cmp_prime_map[tag] = r_msg;
+
+        bool all_cached_flag = true;
+        for (int i = 0; i < 4; i++) {
+            Request_msg dummy_req(cmp_tag * 100);
+            //Response_msg dummy_resp(cmp_tag * 100);
+
+            create_computeprimes_req(dummy_req, params[i]);
+            mstate.client_mapping[cmp_tag] = client_handle;
+            mstate.request_mapping[cmp_tag] = worker_req;
+
+            Cache_key cmp_test_key;
+            cmp_test_key.cmd = "countprimes";
+            cmp_test_key.x = params[i];
+
+            // Record the original tag for compare_prime
+            mstate.tag_head_map[cmp_tag] = tag;
+
+            // Check if the request is cached
+            if (mstate.cache_map.find(cmp_test_key) != mstate.cache_map.end()) {
+                Response_msg resp = mstate.cache_map[cmp_test_key];
+                mstate.cmp_prime_map[tag][i] = resp;
+            } else {
+                all_cached_flag = false;
+                // Send normal request to compute the prime
+                Worker_handle job_receiver = find_best_receiver(dummy_req);
+                if (job_receiver == NULL) {
+                    mstate.pending_requests.push(cmp_tag);
+                } else {
+                    mstate.worker_roster[job_receiver].job_count++;
+                    mstate.worker_roster[job_receiver].idle_time = 0;
+                    mstate.worker_roster[job_receiver].work_estimate[dummy_req.get_thread_id()] +=
+                            work_estimate(dummy_req);
+                    send_request_to_worker(job_receiver, dummy_req);
+                }
             }
-            mstate.pending_cached_jobs.push(tag);
-        } else {
-            Worker_handle job_receiver = mstate.idle_workers.front();
-            mstate.idle_workers.pop();
-            mstate.worker_roster[job_receiver].processing_cached_job = true;
-            mstate.worker_roster[job_receiver].job_count++;
-            mstate.worker_roster[job_receiver].idle_time = 0;
-            mstate.worker_roster[job_receiver].work_estimate[1] += work_estimate(worker_req);
-            worker_req.set_thread_id(1);
-            send_request_to_worker(job_receiver, worker_req);
+            cmp_tag++;
+        }
+        if (all_cached_flag) {
+            Response_msg cmp_prime_resp(tag);
+            compute_cmp_prime_resp(tag, cmp_prime_resp, mstate.cmp_prime_map[tag]);
+            send_client_response(client_handle, cmp_prime_resp);
         }
     } else {
-        Worker_handle job_receiver = find_best_receiver(worker_req);
-        if (job_receiver == NULL) {
-            mstate.pending_requests.push(tag);
-        } else {
-            mstate.worker_roster[job_receiver].job_count++;
+        Cache_key test_key;
+        test_key.cmd = worker_req.get_arg("cmd");
+        test_key.x = (test_key.cmd == "countprimes") ? worker_req.get_arg("n") : worker_req.get_arg("x");
+
+        // Check if the request is cached
+        if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
+            Response_msg resp = mstate.cache_map[test_key];
+            send_client_response(client_handle, resp);
+        } else if (worker_req.get_arg("cmd") == "tellmenow") {
+            int min_instant_job_count = INT_MAX;
+            Worker_handle job_receiver;
+            for (auto const &pair : mstate.worker_roster) {
+                if (pair.second.work_estimate[0] < min_instant_job_count) {
+                    min_instant_job_count = pair.second.work_estimate[0];
+                    job_receiver = pair.first;
+                }
+            }
+
+            worker_req.set_thread_id(0);
+            mstate.worker_roster[job_receiver].instant_job_count++;
+            mstate.worker_roster[job_receiver].work_estimate[0]++;
             mstate.worker_roster[job_receiver].idle_time = 0;
-            mstate.worker_roster[job_receiver].work_estimate[worker_req.get_thread_id()] +=
-                    work_estimate(worker_req);
             send_request_to_worker(job_receiver, worker_req);
-            DLOG(WARNING) << "Send request to worker "
-                    << job_receiver
-                    << " on thread id "
-                    << worker_req.get_thread_id()
-                    << std::endl;
+        } else if (worker_req.get_arg("cmd") == "projectidea") {
+            if (mstate.idle_workers.size() == 0) {
+                if (mstate.worker_roster.size() < mstate.max_num_workers) {
+                    request_new_worker("projectidea");
+                }
+                mstate.pending_requests.push(tag);
+            } else {
+                Worker_handle job_receiver = mstate.idle_workers.front();
+                mstate.idle_workers.pop();
+                mstate.worker_roster[job_receiver].processing_cached_job = true;
+                mstate.worker_roster[job_receiver].job_count++;
+                mstate.worker_roster[job_receiver].idle_time = 0;
+                mstate.worker_roster[job_receiver].work_estimate[1] += work_estimate(worker_req);
+                worker_req.set_thread_id(1);
+                send_request_to_worker(job_receiver, worker_req);
+            }
+        } else {
+            Worker_handle job_receiver = find_best_receiver(worker_req);
+            if (job_receiver == NULL) {
+                mstate.pending_requests.push(tag);
+            } else {
+                mstate.worker_roster[job_receiver].job_count++;
+                mstate.worker_roster[job_receiver].idle_time = 0;
+                mstate.worker_roster[job_receiver].work_estimate[worker_req.get_thread_id()] +=
+                        work_estimate(worker_req);
+                send_request_to_worker(job_receiver, worker_req);
+            }
         }
     }
 
@@ -332,12 +461,6 @@ int work_estimate(Request_msg& req) {
         estimation = 1;
     } else if (job == "countprimes") {
         estimation = (int) ceil(atoi(req.get_arg("n").c_str()) / 100000.0);
-    } else if (job == "compareprimes") {
-        int n1 = (int) ceil(atoi(req.get_arg("n1").c_str()) / 100000.0);
-        int n2 = (int) ceil(atoi(req.get_arg("n2").c_str()) / 100000.0);
-        int n3 = (int) ceil(atoi(req.get_arg("n3").c_str()) / 100000.0);
-        int n4 = (int) ceil(atoi(req.get_arg("n4").c_str()) / 100000.0);
-        estimation = n1 + n2 + n3 + n4;
     } else {
         estimation = 0;
         DLOG(INFO) << "Work estimation: invalid job name." << std::endl;
@@ -365,3 +488,14 @@ Worker_handle find_best_receiver(Request_msg& req) {
     return NULL;
 }
 
+void compute_cmp_prime_resp(int tag, Response_msg& cmp_prime_resp, std::vector<Response_msg> prime_resp) {
+    int counts[4];
+    for (int i = 0; i < 4; i++) {
+        counts[i] = atoi(prime_resp[i].get_response().c_str());
+    }
+
+    if (counts[1] - counts[0] > counts[3] - counts[2])
+        cmp_prime_resp.set_response("There are more primes in first range.");
+    else
+        cmp_prime_resp.set_response("There are more primes in second range.");
+}
