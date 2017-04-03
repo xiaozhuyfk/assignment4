@@ -233,6 +233,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
         } else {
             mstate.idle_workers.push(worker_handle);
+            DLOG(WARNING) << "Add worker to idle " <<
+                    worker_handle << std::endl;
         }
     } else {
         if (mstate.pending_requests.size() > 0 && thread_id > 0) {
