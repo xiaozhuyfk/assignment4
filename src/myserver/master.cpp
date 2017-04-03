@@ -34,6 +34,10 @@ void compute_cmp_prime_resp(
         Response_msg& cmp_prime_resp,
         std::vector<Response_msg> prime_resp);
 
+void distribute_job(Request_msg& req);
+
+void distribute_job_to_worker(Worker_handle worker, Request_msg& req);
+
 // Generate a valid 'countprimes' request dictionary from integer 'n'
 static void create_computeprimes_req(Request_msg& req, int n) {
     std::ostringstream oss;
@@ -197,7 +201,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     // Deal with compare prime response
     if (mstate.tag_head_map.find(tag) != mstate.tag_head_map.end()) {
         int tag_head = mstate.tag_head_map[tag];
-        mstate.cmp_prime_map[tag_head][tag-tag_head-1] = resp;
+        mstate.cmp_prime_map[tag_head][tag-tag_head - 1] = resp;
         bool prime_all_finish = true;
 
         for (Response_msg& r : mstate.cmp_prime_map[tag_head]) {
@@ -223,7 +227,19 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     // add to idle queue if no job is current processing
     if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-        mstate.idle_workers.push(worker_handle);
+        if (mstate.pending_cached_jobs.size() > 0) {
+            int tag = mstate.pending_cached_jobs.front();
+            mstate.pending_cached_jobs.pop();
+            distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
+        } else {
+            mstate.idle_workers.push(worker_handle);
+        }
+    } else {
+        if (mstate.pending_requests.size() > 0) {
+            int tag = mstate.pending_requests.front();
+            mstate.pending_requests.pop();
+            distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
+        }
     }
 
     // add response to cache
@@ -267,7 +283,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     // if we get a compare primes job
     if (worker_req.get_arg("cmd") == "compareprimes") {
         int params[4];
-        int cmp_tag = tag+1;
+        int cmp_tag = tag + 1;
 
         // grab the four arguments defining the two ranges
         params[0] = atoi(worker_req.get_arg("n1").c_str());
@@ -300,20 +316,12 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
                 mstate.cmp_prime_map[tag][i] = resp;
             } else {
                 all_cached_flag = false;
-                // Send normal request to compute the prime
-                Worker_handle job_receiver = find_best_receiver(dummy_req);
-                if (job_receiver == NULL) {
-                    mstate.pending_requests.push(cmp_tag);
-                } else {
-                    mstate.worker_roster[job_receiver].job_count++;
-                    mstate.worker_roster[job_receiver].idle_time = 0;
-                    mstate.worker_roster[job_receiver].work_estimate[dummy_req.get_thread_id()] +=
-                            work_estimate(dummy_req);
-                    send_request_to_worker(job_receiver, dummy_req);
-                }
+                distribute_job(dummy_req);
             }
             cmp_tag++;
         }
+
+        // if all count
         if (all_cached_flag) {
             Response_msg cmp_prime_resp(tag);
             compute_cmp_prime_resp(tag, cmp_prime_resp, mstate.cmp_prime_map[tag]);
@@ -332,42 +340,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             Response_msg resp = mstate.cache_map[test_key];
             send_client_response(client_handle, resp);
         // if it is an instant job, send to worker directly
-        } else if (worker_req.get_arg("cmd") == "tellmenow") {
-            Worker_handle job_receiver = mstate.worker_roster.begin()->first;
-            worker_req.set_thread_id(0);
-            mstate.worker_roster[job_receiver].instant_job_count++;
-            mstate.worker_roster[job_receiver].work_estimate[0]++;
-            mstate.worker_roster[job_receiver].idle_time = 0;
-            send_request_to_worker(job_receiver, worker_req);
-        // if it is an cached job
-        } else if (worker_req.get_arg("cmd") == "projectidea") {
-            if (mstate.idle_workers.size() == 0) {
-                if (mstate.worker_roster.size() + mstate.requested_workers <
-                        mstate.max_num_workers) {
-                    request_new_worker();
-                }
-                mstate.pending_requests.push(tag);
-            } else {
-                Worker_handle job_receiver = mstate.idle_workers.front();
-                mstate.idle_workers.pop();
-                mstate.worker_roster[job_receiver].processing_cached_job = true;
-                mstate.worker_roster[job_receiver].job_count++;
-                mstate.worker_roster[job_receiver].idle_time = 0;
-                mstate.worker_roster[job_receiver].work_estimate[1] += work_estimate(worker_req);
-                worker_req.set_thread_id(1);
-                send_request_to_worker(job_receiver, worker_req);
-            }
         } else {
-            Worker_handle job_receiver = find_best_receiver(worker_req);
-            if (job_receiver == NULL) {
-                mstate.pending_requests.push(tag);
-            } else {
-                mstate.worker_roster[job_receiver].job_count++;
-                mstate.worker_roster[job_receiver].idle_time = 0;
-                mstate.worker_roster[job_receiver].work_estimate[worker_req.get_thread_id()] +=
-                        work_estimate(worker_req);
-                send_request_to_worker(job_receiver, worker_req);
-            }
+            distribute_job(worker_req);
         }
     }
 
@@ -383,6 +357,7 @@ void handle_tick() {
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
 
+    /*
     while (mstate.pending_requests.size() > 0) {
         int tag = mstate.pending_requests.front();
         Request_msg req = mstate.request_mapping[tag];
@@ -414,8 +389,10 @@ void handle_tick() {
             }
         }
     }
+    */
 
     // request new workers
+    /*
     if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
         int min_job_count = INT_MAX;
@@ -427,6 +404,7 @@ void handle_tick() {
         if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
             request_new_worker();
     }
+    */
 
     // discard idle workers
     /*
@@ -482,31 +460,91 @@ int work_estimate(Request_msg& req) {
 
 
 Worker_handle find_best_receiver(Request_msg& req) {
-    int minimum_work = INT_MAX;
-    Worker_handle receiver = NULL;
-
     for (auto const &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
         if (wstate.processing_cached_job) continue;
 
-        int min_estimation = INT_MAX;
-        int min_thread_id = 1;
         for (int i = 1; i < NUM_THREADS; i++) {
-            if (wstate.work_estimate[i] < min_estimation) {
-                min_estimation = wstate.work_estimate[i];
-                min_thread_id = i;
+            if (wstate.work_estimate[i] == 0) {
+                req.set_thread_id(i);
+                return worker;
             }
         }
+    }
+    return NULL;
+}
 
-        if (min_estimation < minimum_work) {
-            receiver = worker;
-            req.set_thread_id(min_thread_id);
+
+void distribute_job(Request_msg& req) {
+    int tag = req.get_tag() / 100;
+
+    if (req.get_arg("cmd") == "tellmenow") {
+        Worker_handle job_receiver = mstate.worker_roster.begin()->first;
+        req.set_thread_id(0);
+        mstate.worker_roster[job_receiver].instant_job_count++;
+        mstate.worker_roster[job_receiver].work_estimate[0]++;
+        mstate.worker_roster[job_receiver].idle_time = 0;
+        send_request_to_worker(job_receiver, req);
+    // if it is an cached job
+    } else if (req.get_arg("cmd") == "projectidea") {
+        if (mstate.idle_workers.size() == 0) {
+            if (mstate.worker_roster.size() + mstate.requested_workers <
+                    mstate.max_num_workers) {
+                request_new_worker();
+            }
+            mstate.pending_cached_jobs.push(tag);
+        } else {
+            Worker_handle job_receiver = mstate.idle_workers.front();
+            mstate.idle_workers.pop();
+            mstate.worker_roster[job_receiver].processing_cached_job = true;
+            mstate.worker_roster[job_receiver].job_count++;
+            mstate.worker_roster[job_receiver].idle_time = 0;
+            mstate.worker_roster[job_receiver].work_estimate[1] +=
+                    work_estimate(req);
+            req.set_thread_id(1);
+            send_request_to_worker(job_receiver, req);
         }
     }
+    // other jobs (418wisdom, countprimes)
+    else {
+        Worker_handle job_receiver = find_best_receiver(req);
+        if (job_receiver == NULL) {
+            mstate.pending_requests.push(tag);
+        } else {
+            mstate.worker_roster[job_receiver].job_count++;
+            mstate.worker_roster[job_receiver].idle_time = 0;
+            mstate.worker_roster[job_receiver].work_estimate[req.get_thread_id()] +=
+                    work_estimate(req);
+            send_request_to_worker(job_receiver, req);
+        }
+    }
+}
 
-    return receiver;
+
+void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
+    Worker_state& wstate = mstate.worker_roster[worker];
+    if (req.get_arg("cmd") == "tellmenow") {
+        req.set_thread_id(0);
+        wstate.instant_job_count++;
+        wstate.work_estimate[0]++;
+        wstate.idle_time = 0;
+        send_request_to_worker(worker, req);
+    } else if (req.get_arg("cmd") == "projectidea") {
+        mstate.idle_workers.pop();
+        wstate.processing_cached_job = true;
+        wstate.job_count++;
+        wstate.idle_time = 0;
+        wstate.work_estimate[1] += work_estimate(req);
+        req.set_thread_id(1);
+        send_request_to_worker(worker, req);
+    } else {
+        wstate.job_count++;
+        wstate.idle_time = 0;
+        wstate.work_estimate[req.get_thread_id()] += work_estimate(req);
+        send_request_to_worker(worker, req);
+    }
 }
 
 
