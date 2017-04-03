@@ -8,7 +8,6 @@
 #include <map>
 #include <vector>
 #include <queue>
-#include <unordered_map>
 
 #include "server/messages.h"
 #include "server/master.h"
@@ -16,7 +15,7 @@
 
 
 #define NUM_THREADS 24
-#define JOB_COUNT_THREASHOLD 48
+#define JOB_COUNT_THREASHOLD 12
 #define WORK_THREASHOLD 200
 
 
@@ -28,7 +27,12 @@ int work_estimate(Request_msg& req);
 
 Worker_handle find_best_receiver(Request_msg& req);
 
-void request_new_worker(std::string name);
+void request_new_worker();
+
+void compute_cmp_prime_resp(
+        int tag,
+        Response_msg& cmp_prime_resp,
+        std::vector<Response_msg> prime_resp);
 
 // Generate a valid 'countprimes' request dictionary from integer 'n'
 static void create_computeprimes_req(Request_msg& req, int n) {
@@ -79,23 +83,19 @@ static struct Master_state {
         int next_tag;
 
         // all workers alive
-        std::unordered_map<Worker_handle, Worker_state> worker_roster;
+        std::map<Worker_handle, Worker_state> worker_roster;
 
         // tag-client map
-        std::unordered_map<int, Client_handle> client_mapping;
+        std::map<int, Client_handle> client_mapping;
 
         // tag-request map
-        std::unordered_map<int, Request_msg> request_mapping;
+        std::map<int, Request_msg> request_mapping;
 
         // queue of idle workers (no current jobs)
         std::queue<Worker_handle> idle_workers;
 
         // queue of requests that not assigned to workers
         std::queue<int> pending_requests;
-
-
-        // queue of cached jobs that not assigned to workers
-        std::queue<int> pending_cached_jobs;
 
         // cache map
         std::map<Cache_key, Response_msg> cache_map;
@@ -121,8 +121,7 @@ void master_node_init(int max_workers, int& tick_period) {
     mstate.server_ready = false;
 
     // fire off a request for a new worker
-    for (int i = 0; i < max_workers; i++)
-        request_new_worker("master_node_init");
+    request_new_worker();
 }
 
 void handle_new_worker_online(Worker_handle worker_handle, int tag) {
@@ -175,9 +174,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     else mstate.worker_roster[worker_handle].instant_job_count--;
 
     mstate.worker_roster[worker_handle].work_estimate[thread_id] -= work_estimate(req);
-
-    if (job != "tellmenow")
-        assert(mstate.worker_roster[worker_handle].work_estimate[thread_id] == 0);
+    assert(mstate.worker_roster[worker_handle].work_estimate[thread_id] >= 0);
 
     // Deal with compare prime response
     if (mstate.tag_head_map.find(tag) != mstate.tag_head_map.end()) {
@@ -202,22 +199,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
-    // get job from pending queue
-    if (mstate.pending_requests.size() > 0) {
-        int tag = mstate.pending_requests.front();
-        Request_msg req = mstate.request_mapping[tag];
-        req.set_thread_id(thread_id);
-
-        Worker_handle job_receiver = worker_handle;
-        mstate.worker_roster[job_receiver].job_count++;
-        mstate.worker_roster[job_receiver].idle_time = 0;
-        mstate.worker_roster[job_receiver].work_estimate[thread_id] +=
-                work_estimate(req);
-        send_request_to_worker(job_receiver, req);
-    }
-
-    if (mstate.worker_roster[worker_handle].job_count == 0 &&
-            mstate.worker_roster[worker_handle].instant_job_count == 0) {
+    if (mstate.worker_roster[worker_handle].job_count == 0) {
         mstate.idle_workers.push(worker_handle);
     }
     if (job != "compareprimes") {
@@ -252,7 +234,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     Request_msg worker_req(tag * 100, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
-
     mstate.next_tag = (client_req.get_arg("cmd") == "compareprimes") ? mstate.next_tag+5 : mstate.next_tag+1;
 
     if (worker_req.get_arg("cmd") == "compareprimes") {
@@ -336,7 +317,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         } else if (worker_req.get_arg("cmd") == "projectidea") {
             if (mstate.idle_workers.size() == 0) {
                 if (mstate.worker_roster.size() < mstate.max_num_workers) {
-                    request_new_worker("projectidea");
+                    request_new_worker();
                 }
                 mstate.pending_requests.push(tag);
             } else {
@@ -375,8 +356,8 @@ void handle_tick() {
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
 
-    while (mstate.pending_cached_jobs.size() > 0) {
-        int tag = mstate.pending_cached_jobs.front();
+    while (mstate.pending_requests.size() > 0) {
+        int tag = mstate.pending_requests.front();
         Request_msg req = mstate.request_mapping[tag];
         if (req.get_arg("cmd") == "projectidea") {
             if (mstate.idle_workers.size() == 0) {
@@ -409,27 +390,28 @@ void handle_tick() {
 
     // request new workers
     if (mstate.worker_roster.size() < mstate.max_num_workers) {
-        int min_job_count = INT_MAX;
+        int max_job_count = 0;
         for (auto const &pair : mstate.worker_roster) {
             Worker_state wstate = pair.second;
-            if (wstate.job_count < min_job_count)
-                min_job_count = wstate.job_count;
+            if (wstate.job_count > max_job_count)
+                max_job_count = wstate.job_count;
         }
 
-        if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
-            request_new_worker("overload");
+        if (max_job_count > JOB_COUNT_THREASHOLD) request_new_worker();
     }
 
     // discard idle workers
     /*
-    if (mstate.worker_roster.size() > 0) {
+    while (mstate.worker_roster.size() > 0) {
         Worker_handle worker = mstate.idle_workers.front();
         Worker_state wstate = mstate.worker_roster[worker];
         if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
-            DLOG(INFO) << "enter here" << std::endl;
-            mstate.idle_workers.pop();
-            mstate.worker_roster.erase(worker);
-            kill_worker_node(worker);
+            mstate.worker_roster[worker].idle_time++;
+            if (mstate.worker_roster[worker].idle_time > 3) {
+                mstate.idle_workers.pop();
+                mstate.worker_roster.erase(worker);
+                kill_worker_node(worker);
+            }
         }
     }
     */
@@ -441,10 +423,10 @@ void handle_tick() {
  * Helper functions
  */
 
-void request_new_worker(std::string name) {
+void request_new_worker() {
     int tag = random();
     Request_msg req(tag);
-    req.set_arg("name", name);
+    req.set_arg("name", "my worker");
     request_new_worker_node(req);
 }
 
@@ -471,24 +453,38 @@ int work_estimate(Request_msg& req) {
 
 
 Worker_handle find_best_receiver(Request_msg& req) {
+    int minimum_work = INT_MAX;
+    Worker_handle receiver = NULL;
+
     for (auto const &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
         if (wstate.processing_cached_job) continue;
 
+        int min_estimation = INT_MAX;
+        int min_thread_id = 1;
         for (int i = 1; i < NUM_THREADS; i++) {
-            if (wstate.work_estimate[i] == 0) {
-                req.set_thread_id(i);
-                return worker;
+            if (wstate.work_estimate[i] < min_estimation) {
+                min_estimation = wstate.work_estimate[i];
+                min_thread_id = i;
             }
+        }
+
+        if (min_estimation < minimum_work) {
+            receiver = worker;
+            req.set_thread_id(min_thread_id);
         }
     }
 
-    return NULL;
+    return receiver;
 }
 
-void compute_cmp_prime_resp(int tag, Response_msg& cmp_prime_resp, std::vector<Response_msg> prime_resp) {
+
+void compute_cmp_prime_resp(
+        int tag,
+        Response_msg& cmp_prime_resp,
+        std::vector<Response_msg> prime_resp) {
     int counts[4];
     for (int i = 0; i < 4; i++) {
         counts[i] = atoi(prime_resp[i].get_response().c_str());
