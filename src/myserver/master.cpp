@@ -420,6 +420,7 @@ void handle_tick() {
         mstate.idle_workers.pop();
         mstate.worker_roster.erase(worker);
         kill_worker_node(worker);
+        break;
     }
 
     /*
