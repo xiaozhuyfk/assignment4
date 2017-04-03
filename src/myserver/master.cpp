@@ -23,8 +23,6 @@
  * Helper function headers
  */
 
-int work_estimate(Request_msg& req);
-
 Worker_handle find_best_receiver(Request_msg& req);
 
 void request_new_worker(std::string name);
@@ -285,41 +283,13 @@ void request_new_worker(std::string name) {
     mstate.requested_workers++;
 }
 
-
-int work_estimate(Request_msg& req) {
-    std::string job = req.get_arg("cmd");
-    int estimation;
-
-    if (job == "418wisdom") {
-        estimation = 175;
-    } else if (job == "projectidea") {
-        estimation = 3 * 14 / sizeof(void *);
-    } else if (job == "tellmenow") {
-        estimation = 1;
-    } else if (job == "countprimes") {
-        estimation = (int) ceil(atoi(req.get_arg("n").c_str()) / 100000.0);
-    } else if (job == "compareprimes") {
-        int n1 = (int) ceil(atoi(req.get_arg("n1").c_str()) / 100000.0);
-        int n2 = (int) ceil(atoi(req.get_arg("n2").c_str()) / 100000.0);
-        int n3 = (int) ceil(atoi(req.get_arg("n3").c_str()) / 100000.0);
-        int n4 = (int) ceil(atoi(req.get_arg("n4").c_str()) / 100000.0);
-        estimation = n1 + n2 + n3 + n4;
-    } else {
-        estimation = 0;
-        DLOG(INFO) << "Work estimation: invalid job name." << std::endl;
-    }
-
-    return estimation;
-}
-
-
 Worker_handle find_best_receiver(Request_msg& req) {
     int minimum_work = INT_MAX;
     Worker_handle receiver = NULL;
 
     for (auto const &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
-        Worker_state wstate = pair.second;
+        Worker_state& wstate = pair.second;
 
         if (wstate.processing_cached_job) continue;
 
