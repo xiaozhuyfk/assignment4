@@ -68,6 +68,9 @@ static struct Master_state {
         // queue of requests that not assigned to workers
         std::queue<int> pending_requests;
 
+        // queue of projectidea requests that not assigned to workers
+        std::queue<int> pending_cached_jobs;
+
 } mstate;
 
 void master_node_init(int max_workers, int& tick_period) {
@@ -160,19 +163,20 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         return;
     }
 
-    // Fire off the request to the worker.  Eventually the worker will
-    // respond, and your 'handle_worker_response' event handler will be
-    // called to forward the worker's response back to the server.
+    // create worker request
     int tag = mstate.next_tag++;
     Request_msg worker_req(tag, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
 
+    // instant job, send to worker directory
     if (worker_req.get_arg("cmd") == "tellmenow") {
         Worker_handle job_receiver = mstate.worker_roster.begin()->first;
         mstate.worker_roster[job_receiver].instant_job_count++;
         send_request_to_worker(job_receiver, worker_req);
-    } else if (worker_req.get_arg("cmd") == "projectidea") {
+    }
+    // cached job, send to idle worker or append to queue
+    else if (worker_req.get_arg("cmd") == "projectidea") {
         if (mstate.idle_workers.size() == 0) {
             if (mstate.worker_roster.size() < mstate.max_num_workers) {
                 request_new_worker("cached job");
@@ -207,6 +211,7 @@ void handle_tick() {
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
 
+    /*
     while (mstate.pending_requests.size() > 0) {
         int tag = mstate.pending_requests.front();
         Request_msg req = mstate.request_mapping[tag];
@@ -232,9 +237,11 @@ void handle_tick() {
             }
         }
     }
+    */
 
     // request new workers
-    if (mstate.worker_roster.size() < mstate.max_num_workers) {
+    if (mstate.worker_roster.size() + mstate.requested_workers
+            < mstate.max_num_workers) {
         int min_job_count = INT_MAX;
         for (auto const &pair : mstate.worker_roster) {
             Worker_state wstate = pair.second;
@@ -246,8 +253,8 @@ void handle_tick() {
             request_new_worker("overload");
     }
 
-    // discard idle workers
     /*
+    // discard idle workers
     if (mstate.worker_roster.size() > 0) {
         Worker_handle worker = mstate.idle_workers.front();
         Worker_state wstate = mstate.worker_roster[worker];
