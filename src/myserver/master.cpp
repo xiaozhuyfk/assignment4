@@ -42,6 +42,14 @@ static void create_computeprimes_req(Request_msg& req, int n) {
     req.set_arg("n", oss.str());
 }
 
+
+
+
+
+
+
+
+
 /*
  * Master server routine
  */
@@ -80,6 +88,7 @@ static struct Master_state {
 
         bool server_ready;
         int max_num_workers;
+        int requested_workers;
         int next_tag;
 
         // all workers alive
@@ -114,6 +123,7 @@ void master_node_init(int max_workers, int& tick_period) {
 
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
+    mstate.requested_workers = 0;
 
     // don't mark the server as ready until the server is ready to go.
     // This is actually when the first worker is up and running, not
@@ -130,6 +140,7 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     // corresponds to.  Since the starter code only sends off one new
     // worker request, we don't use it here.
 
+    mstate.requested_workers--;
     mstate.worker_roster[worker_handle].job_count = 0;
     mstate.worker_roster[worker_handle].instant_job_count = 0;
     mstate.worker_roster[worker_handle].idle_time = 0;
@@ -164,44 +175,55 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     int thread_id = resp.get_thread_id();
     Request_msg req = mstate.request_mapping[tag];
     Client_handle client = mstate.client_mapping[tag];
+    Worker_state& wstate = mstate.worker_roster[worker_handle];
     std::string job = req.get_arg("cmd");
 
+    // reset cached job status
     if (job == "projectidea") {
-        mstate.worker_roster[worker_handle].processing_cached_job = false;
+        wstate.processing_cached_job = false;
     }
 
-    if (job != "tellmenow") mstate.worker_roster[worker_handle].job_count--;
-    else mstate.worker_roster[worker_handle].instant_job_count--;
+    // decrement job count
+    if (job != "tellmenow") wstate.job_count--;
+    else wstate.instant_job_count--;
 
-    mstate.worker_roster[worker_handle].work_estimate[thread_id] -= work_estimate(req);
-    assert(mstate.worker_roster[worker_handle].work_estimate[thread_id] >= 0);
+    // restore the work estimate entry for the worker
+    wstate.work_estimate[thread_id] -= work_estimate(req);
+    assert(wstate.work_estimate[thread_id] >= 0);
 
     // Deal with compare prime response
     if (mstate.tag_head_map.find(tag) != mstate.tag_head_map.end()) {
         int tag_head = mstate.tag_head_map[tag];
         mstate.cmp_prime_map[tag_head][tag-tag_head-1] = resp;
         bool prime_all_finish = true;
-        for (Response_msg r : mstate.cmp_prime_map[tag_head]) {
+
+        for (Response_msg& r : mstate.cmp_prime_map[tag_head]) {
             if (r.get_tag() == -1) {
                 prime_all_finish = false;
                 break;
             }
         }
+
         if (prime_all_finish) {
             Response_msg cmp_prime_resp(tag_head);
-            compute_cmp_prime_resp(tag_head, cmp_prime_resp, mstate.cmp_prime_map[tag_head]);
+            compute_cmp_prime_resp(tag_head, cmp_prime_resp,
+                    mstate.cmp_prime_map[tag_head]);
             send_client_response(client, cmp_prime_resp);
         }
     } else {
         send_client_response(client, resp);
     }
 
+    // erase the request from client/request mapping
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
-    if (mstate.worker_roster[worker_handle].job_count == 0) {
+    // add to idle queue if no job is current processing
+    if (wstate.job_count == 0 && wstate.instant_job_count == 0) {
         mstate.idle_workers.push(worker_handle);
     }
+
+    // add response to cache
     if (job != "compareprimes") {
         Cache_key k;
         k.cmd = job;
@@ -428,6 +450,7 @@ void request_new_worker() {
     Request_msg req(tag);
     req.set_arg("name", "my worker");
     request_new_worker_node(req);
+    mstate.requested_workers++;
 }
 
 
