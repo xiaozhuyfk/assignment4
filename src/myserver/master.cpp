@@ -415,6 +415,14 @@ void handle_tick() {
     */
 
     // discard idle workers
+    while (mstate.idle_workers.size() > 0) {
+        Worker_handle worker = mstate.idle_workers.front();
+        mstate.idle_workers.pop();
+        mstate.worker_roster.erase(worker);
+        kill_worker_node(worker);
+    }
+
+    /*
     for (auto &pair : mstate.worker_roster) {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
@@ -423,6 +431,7 @@ void handle_tick() {
             break;
         }
     }
+    */
 }
 
 
