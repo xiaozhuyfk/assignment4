@@ -87,7 +87,8 @@ void master_node_init(int max_workers, int& tick_period) {
     mstate.server_ready = false;
 
     // fire off a request for a new worker
-    request_new_worker("master_node_init");
+    for (int i = 0; i < max_workers; i++)
+        request_new_worker("master_node_init");
 }
 
 void handle_new_worker_online(Worker_handle worker_handle, int tag) {
@@ -240,6 +241,7 @@ void handle_tick() {
     */
 
     // request new workers
+    /*
     if (mstate.worker_roster.size() + mstate.requested_workers
             < mstate.max_num_workers) {
         int min_job_count = INT_MAX;
@@ -252,6 +254,7 @@ void handle_tick() {
         if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
             request_new_worker("overload");
     }
+    */
 
     /*
     // discard idle workers
