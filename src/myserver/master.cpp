@@ -418,8 +418,8 @@ void handle_tick() {
     for (auto &pair : mstate.worker_roster) {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
-            kill_worker_node(pair.first);
             mstate.worker_roster.erase(pair.first);
+            kill_worker_node(pair.first);
             break;
         }
     }
@@ -506,6 +506,11 @@ void distribute_job(Request_msg& req) {
             Worker_handle job_receiver = mstate.idle_workers.front();
             DLOG(INFO) << "yoyo job receiver is "
                     << job_receiver << std::endl;
+            if (mstate.worker_roster.find(job_receiver) == mstate.worker_roster.end()) {
+                DLOG(INFO) << "not found" << std::endl;
+            } else {
+                DLOG(INFO) << "found" << std::endl;
+            }
             DLOG(INFO) << 3 << std::endl;
             mstate.idle_workers.pop();
             DLOG(INFO) << 4 << std::endl;
