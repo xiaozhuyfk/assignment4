@@ -519,6 +519,7 @@ void distribute_job(Request_msg& req) {
     else {
         Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
+            DLOG(WARNING) << "Pushed to pending requests?" << std::endl;
             mstate.pending_requests.push(tag);
         } else {
             mstate.worker_roster[job_receiver].job_count++;
