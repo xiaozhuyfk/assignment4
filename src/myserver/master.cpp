@@ -497,21 +497,31 @@ void distribute_job(Request_msg& req) {
     } else if (req.get_arg("cmd") == "projectidea") {
         DLOG(INFO) << "cached start" << std::endl;
         if (mstate.idle_workers.size() == 0) {
+            DLOG(INFO) << 1 << std::endl;
             if (mstate.worker_roster.size() + mstate.requested_workers <
                     mstate.max_num_workers) {
                 request_new_worker();
             }
             mstate.pending_cached_jobs.push(tag);
         } else {
+            DLOG(INFO) << 2 << std::endl;
             Worker_handle job_receiver = mstate.idle_workers.front();
+            DLOG(INFO) << 3 << std::endl;
             mstate.idle_workers.pop();
+            DLOG(INFO) << 4 << std::endl;
             mstate.worker_roster[job_receiver].processing_cached_job = true;
+            DLOG(INFO) << 5 << std::endl;
             mstate.worker_roster[job_receiver].job_count++;
+            DLOG(INFO) << 6 << std::endl;
             mstate.worker_roster[job_receiver].idle_time = 0;
+            DLOG(INFO) << 7 << std::endl;
             mstate.worker_roster[job_receiver].work_estimate[1] +=
                     work_estimate(req);
+            DLOG(INFO) << 8 << std::endl;
             req.set_thread_id(1);
+            DLOG(INFO) << 9 << std::endl;
             send_request_to_worker(job_receiver, req);
+            DLOG(INFO) << 10 << std::endl;
         }
         DLOG(INFO) << "cached end" << std::endl;
     }
