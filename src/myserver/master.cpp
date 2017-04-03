@@ -15,7 +15,7 @@
 
 
 #define NUM_THREADS 24
-#define JOB_COUNT_THREASHOLD 12
+#define JOB_COUNT_THREASHOLD 48
 #define WORK_THREASHOLD 200
 
 
@@ -256,8 +256,12 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     Request_msg worker_req(tag * 100, client_req);
     mstate.client_mapping[tag] = client_handle;
     mstate.request_mapping[tag] = worker_req;
-    mstate.next_tag = (client_req.get_arg("cmd") == "compareprimes") ? mstate.next_tag+5 : mstate.next_tag+1;
+    mstate.next_tag =
+            (client_req.get_arg("cmd") == "compareprimes") ?
+            mstate.next_tag + 5 :
+            mstate.next_tag + 1;
 
+    // if we get a compare primes job
     if (worker_req.get_arg("cmd") == "compareprimes") {
         int params[4];
         int cmp_tag = tag+1;
@@ -312,6 +316,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             compute_cmp_prime_resp(tag, cmp_prime_resp, mstate.cmp_prime_map[tag]);
             send_client_response(client_handle, cmp_prime_resp);
         }
+    // if it is not a compare primes job
     } else {
         Cache_key test_key;
         test_key.cmd = worker_req.get_arg("cmd");
@@ -321,24 +326,19 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
             Response_msg resp = mstate.cache_map[test_key];
             send_client_response(client_handle, resp);
+        // if it is an instant job, send to worker directly
         } else if (worker_req.get_arg("cmd") == "tellmenow") {
-            int min_instant_job_count = INT_MAX;
-            Worker_handle job_receiver;
-            for (auto const &pair : mstate.worker_roster) {
-                if (pair.second.work_estimate[0] < min_instant_job_count) {
-                    min_instant_job_count = pair.second.work_estimate[0];
-                    job_receiver = pair.first;
-                }
-            }
-
+            Worker_handle job_receiver = mstate.worker_roster.begin()->first;
             worker_req.set_thread_id(0);
             mstate.worker_roster[job_receiver].instant_job_count++;
             mstate.worker_roster[job_receiver].work_estimate[0]++;
             mstate.worker_roster[job_receiver].idle_time = 0;
             send_request_to_worker(job_receiver, worker_req);
+        // if it is an cached job
         } else if (worker_req.get_arg("cmd") == "projectidea") {
             if (mstate.idle_workers.size() == 0) {
-                if (mstate.worker_roster.size() < mstate.max_num_workers) {
+                if (mstate.worker_roster.size() + mstate.requested_workers <
+                        mstate.max_num_workers) {
                     request_new_worker();
                 }
                 mstate.pending_requests.push(tag);
@@ -411,15 +411,16 @@ void handle_tick() {
     }
 
     // request new workers
-    if (mstate.worker_roster.size() < mstate.max_num_workers) {
-        int max_job_count = 0;
+    if (mstate.worker_roster.size() + mstate.requested_workers <
+            mstate.max_num_workers) {
+        int min_job_count = INT_MAX;
         for (auto const &pair : mstate.worker_roster) {
             Worker_state wstate = pair.second;
-            if (wstate.job_count > max_job_count)
-                max_job_count = wstate.job_count;
+            if (wstate.job_count < min_job_count)
+                min_job_count = wstate.job_count;
         }
-
-        if (max_job_count > JOB_COUNT_THREASHOLD) request_new_worker();
+        if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
+            request_new_worker();
     }
 
     // discard idle workers
