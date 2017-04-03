@@ -485,14 +485,17 @@ void distribute_job(Request_msg& req) {
     int tag = req.get_tag() / 100;
 
     if (req.get_arg("cmd") == "tellmenow") {
+        DLOG(INFO) << "tellmenow start" << std::endl;
         Worker_handle job_receiver = mstate.worker_roster.begin()->first;
         req.set_thread_id(0);
         mstate.worker_roster[job_receiver].instant_job_count++;
         mstate.worker_roster[job_receiver].work_estimate[0]++;
         mstate.worker_roster[job_receiver].idle_time = 0;
         send_request_to_worker(job_receiver, req);
+        DLOG(INFO) << "tellmenow end" << std::endl;
     // if it is an cached job
     } else if (req.get_arg("cmd") == "projectidea") {
+        DLOG(INFO) << "cached start" << std::endl;
         if (mstate.idle_workers.size() == 0) {
             if (mstate.worker_roster.size() + mstate.requested_workers <
                     mstate.max_num_workers) {
@@ -510,9 +513,11 @@ void distribute_job(Request_msg& req) {
             req.set_thread_id(1);
             send_request_to_worker(job_receiver, req);
         }
+        DLOG(INFO) << "cached end" << std::endl;
     }
     // other jobs (418wisdom, countprimes)
     else {
+        DLOG(INFO) << "other start" << std::endl;
         Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
@@ -523,6 +528,7 @@ void distribute_job(Request_msg& req) {
                     work_estimate(req);
             send_request_to_worker(job_receiver, req);
         }
+        DLOG(INFO) << "other end" << std::endl;
     }
 }
 
