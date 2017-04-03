@@ -81,6 +81,7 @@ struct Cache_key {
     bool operator<(const Cache_key &o) const {
         if (cmd < o.cmd) return true;
         if (cmd > o.cmd) return false;
+        return atoi(x.c_str()) < atoi(o.x.c_str());
     }
 };
 
