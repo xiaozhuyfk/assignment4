@@ -516,6 +516,7 @@ void distribute_job(Request_msg& req) {
             DLOG(INFO) << 5.3 << std::endl;
             mstate.worker_roster[job_receiver].idle_time = 0;
             DLOG(INFO) << 5.4 << std::endl;
+            DLOG(INFO) << mstate.worker_roster[job_receiver].work_estimate[1] << std::endl;
             mstate.worker_roster[job_receiver].work_estimate[1] +=
                     work_estimate(req);
             DLOG(INFO) << 6 << std::endl;
