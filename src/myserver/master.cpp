@@ -106,6 +106,9 @@ static struct Master_state {
         // queue of requests that not assigned to workers
         std::queue<int> pending_requests;
 
+        // queue of cached jobs that not assigned to workers
+        std::queue<int> pending_cached_jobs;
+
         // cache map
         std::map<Cache_key, Response_msg> cache_map;
 
@@ -320,7 +323,9 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     } else {
         Cache_key test_key;
         test_key.cmd = worker_req.get_arg("cmd");
-        test_key.x = (test_key.cmd == "countprimes") ? worker_req.get_arg("n") : worker_req.get_arg("x");
+        test_key.x = (test_key.cmd == "countprimes") ?
+                worker_req.get_arg("n") :
+                worker_req.get_arg("x");
 
         // Check if the request is cached
         if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
