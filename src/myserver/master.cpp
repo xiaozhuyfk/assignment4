@@ -415,7 +415,7 @@ void handle_tick() {
     */
 
     // discard idle workers
-    while (mstate.idle_workers.size() > 0) {
+    while (mstate.idle_workers.size() > 0 && mstate.worker_roster.size() > 0) {
         Worker_handle worker = mstate.idle_workers.front();
         mstate.idle_workers.pop();
         mstate.worker_roster.erase(worker);
