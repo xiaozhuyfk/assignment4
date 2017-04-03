@@ -287,7 +287,7 @@ Worker_handle find_best_receiver(Request_msg& req) {
     int minimum_work = INT_MAX;
     Worker_handle receiver = NULL;
 
-    for (auto const &pair : mstate.worker_roster) {
+    for (auto &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
         Worker_state& wstate = pair.second;
 
