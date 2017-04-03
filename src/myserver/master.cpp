@@ -305,7 +305,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
 
             create_computeprimes_req(dummy_req, params[i]);
             mstate.client_mapping[cmp_tag] = client_handle;
-            mstate.request_mapping[cmp_tag] = worker_req;
+            mstate.request_mapping[cmp_tag] = dummy_req;
 
             Cache_key cmp_test_key;
             cmp_test_key.cmd = "countprimes";
