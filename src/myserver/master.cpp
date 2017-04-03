@@ -232,7 +232,11 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             mstate.pending_cached_jobs.pop();
             distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
         } else {
-            mstate.idle_workers.push(worker_handle);
+            if (mstate.pending_requests.size() > 0) {
+                int tag = mstate.pending_requests.front();
+                mstate.pending_requests.pop();
+                distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
+            }
         }
     } else {
         if (mstate.pending_requests.size() > 0) {
