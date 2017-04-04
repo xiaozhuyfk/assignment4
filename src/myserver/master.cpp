@@ -218,16 +218,6 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     if (job == "projectidea") wstate.processing_cached_job = false;
 
-    /*
-    if (job == "projectidea" && mstate.pending_cached_jobs.size() > 0) {
-        int tag = mstate.pending_cached_jobs.front();
-        mstate.pending_cached_jobs.pop();
-        Request_msg& req = mstate.request_mapping[tag];
-        req.set_thread_id(thread_id);
-        distribute_job_to_worker(worker_handle, req);
-    }
-    */
-
     if (!wstate.processing_cached_job && mstate.pending_cached_jobs.size() > 0) {
         int tag = mstate.pending_cached_jobs.front();
         mstate.pending_cached_jobs.pop();
@@ -355,11 +345,17 @@ void handle_tick() {
     // TODO: you may wish to take action here.  This method is called at
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
+    for (auto &pair : mstate.worker_roster) {
+        Worker_state& wstate = pair.second;
+        if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
+            wstate.idle_time++;
+        }
+    }
 
     if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 15 ||
-                mstate.pending_cached_jobs.size() > 0) {
+        if (mstate.pending_requests.size() > 20 ||
+                mstate.pending_cached_jobs.size() > 2) {
             request_new_worker();
         }
     }
@@ -369,6 +365,7 @@ void handle_tick() {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 &&
                 wstate.job_count == 0 &&
+                wstate.idle_time > 2 &&
                 mstate.worker_roster.size() > 1) {
             mstate.worker_roster.erase(pair.first);
             kill_worker_node(pair.first);
