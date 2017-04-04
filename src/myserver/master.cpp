@@ -381,7 +381,7 @@ void handle_tick() {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 &&
                 wstate.job_count == 0 &&
-                wstate.idle_time > 2 &&
+                wstate.idle_time > 5 &&
                 mstate.worker_roster.size() > 1) {
             mstate.worker_roster.erase(pair.first);
             kill_worker_node(pair.first);
