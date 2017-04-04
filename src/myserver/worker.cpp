@@ -107,7 +107,7 @@ void worker_node_init(const Request_msg& params) {
             << " ****\n";
 
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
-    assert(num_cores == 2);
+    DLOG(INFO) << "Number of cores: " << num_cores << std::endl;
 
     for (int core = 0; core < num_cores; core++) {
         CPU_ZERO(&wstate.cpus[core]);
