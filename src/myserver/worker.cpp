@@ -93,7 +93,7 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
-    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    int num_cores = 2; //sysconf(_SC_NPROCESSORS_ONLN);
     for (int core = 0; core < num_cores; core++) {
         int start = core * NUM_THREADS / 2;
         int end = start + NUM_THREADS / 2;
