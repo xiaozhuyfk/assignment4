@@ -93,6 +93,7 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
+    /*
     int num_cores = 2; //sysconf(_SC_NPROCESSORS_ONLN);
     for (int core = 0; core < num_cores; core++) {
         int start = core * NUM_THREADS / 2;
@@ -111,10 +112,9 @@ void worker_node_init(const Request_msg& params) {
                     &normal_job_handler,
                     (void *) &wstate.thread_id[i]);
         }
-
     }
+    */
 
-    /*
     for (int i = 0; i < NUM_THREADS; i++) {
         wstate.thread_id[i] = i;
         wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
@@ -123,7 +123,6 @@ void worker_node_init(const Request_msg& params) {
                 &normal_job_handler,
                 (void *) &wstate.thread_id[i]);
     }
-    */
 
     //pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
 }
