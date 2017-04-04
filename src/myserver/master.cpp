@@ -59,7 +59,8 @@ struct Worker_state {
         int job_count;
         int instant_job_count;
         int idle_time;
-        bool processing_cached_job;
+
+        bool processing_cached_job[2];
         std::vector<int> work_estimate;
 };
 
@@ -150,7 +151,8 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     mstate.worker_roster[worker_handle].job_count = 0;
     mstate.worker_roster[worker_handle].instant_job_count = 0;
     mstate.worker_roster[worker_handle].idle_time = 0;
-    mstate.worker_roster[worker_handle].processing_cached_job = false;
+    mstate.worker_roster[worker_handle].processing_cached_job[0] = false;
+    mstate.worker_roster[worker_handle].processing_cached_job[1] = false;
     mstate.worker_roster[worker_handle].work_estimate =
             std::vector<int>(NUM_THREADS, 0);
 
@@ -220,8 +222,28 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
-    if (job == "projectidea") wstate.processing_cached_job = false;
+    if (job == "projectidea")
+        wstate.processing_cached_job[thread_id - 1] = false;
 
+    if (thread_id == 1 || thread_id == 2) {
+        if (!wstate.processing_cached_job[thread_id - 1] &&
+                mstate.pending_cached_jobs.size() > 0) {
+            int tag = mstate.pending_cached_jobs.front();
+            mstate.pending_cached_jobs.pop();
+            Request_msg& req = mstate.request_mapping[tag];
+            req.set_thread_id(thread_id);
+            distribute_job_to_worker(worker_handle, req);
+        }
+    } else {
+        if (mstate.pending_requests.size() > 0) {
+            int tag = mstate.pending_requests.front();
+            mstate.pending_requests.pop();
+            Request_msg& req = mstate.request_mapping[tag];
+            req.set_thread_id(thread_id);
+            distribute_job_to_worker(worker_handle, req);
+        }
+    }
+    /*
     if (!wstate.processing_cached_job && mstate.pending_cached_jobs.size() > 0) {
         int tag = mstate.pending_cached_jobs.front();
         mstate.pending_cached_jobs.pop();
@@ -235,6 +257,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         req.set_thread_id(thread_id);
         distribute_job_to_worker(worker_handle, req);
     }
+    */
 
     // add response to cache
     if (job != "compareprimes") {
@@ -454,14 +477,21 @@ Worker_handle find_best_receiver(Request_msg& req) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
-        //if (req.get_arg("cmd") == "projectidea" &&
-        //        wstate.processing_cached_job) continue;
-
-        int start_thread = (worker == mstate.first_worker) ? 1 : 0;
-        for (int i = start_thread; i < NUM_THREADS; i++) {
-            if (wstate.work_estimate[i] == 0) {
-                req.set_thread_id(i);
+        if (req.get_arg("cmd") == "projectidea") {
+            if (wstate.processing_cached_job[0]) {
+                req.set_thread_id(1);
                 return worker;
+            } else if (wstate.processing_cached_job[1]) {
+                req.set_thread_id(2);
+                return worker;
+            }
+        } else {
+            int start_thread = (worker == mstate.first_worker) ? 1 : 0;
+            for (int i = start_thread; i < NUM_THREADS; i++) {
+                if (wstate.work_estimate[i] == 0) {
+                    req.set_thread_id(i);
+                    return worker;
+                }
             }
         }
     }
@@ -472,6 +502,7 @@ Worker_handle find_best_receiver(Request_msg& req) {
 void distribute_job(Request_msg& req) {
     int tag = req.get_tag() / 100;
 
+    // if instant job, send to the first worker on thread 0 directly
     if (req.get_arg("cmd") == "tellmenow") {
         Worker_handle job_receiver = mstate.first_worker;
         req.set_thread_id(0);
@@ -518,7 +549,7 @@ void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
         wstate.idle_time = 0;
         send_request_to_worker(worker, req);
     } else if (req.get_arg("cmd") == "projectidea") {
-        wstate.processing_cached_job = true;
+        wstate.processing_cached_job[req.get_thread_id() - 1] = true;
         wstate.job_count++;
         wstate.idle_time = 0;
         wstate.work_estimate[req.get_thread_id()] += work_estimate(req);

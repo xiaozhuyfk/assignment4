@@ -17,11 +17,8 @@
 
 static struct Worker_state {
         int thread_id[NUM_THREADS];
-        cpu_set_t cpus[NUM_THREADS];
         pthread_t threads[NUM_THREADS];
-        pthread_attr_t attribute[NUM_THREADS];
         WorkQueue<Request_msg> normal_job_queue[NUM_THREADS];
-        //WorkQueue<Request_msg> instant_job_queue;
 } wstate;
 
 
@@ -93,47 +90,24 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
-    /*
-    int num_cores = 2; //sysconf(_SC_NPROCESSORS_ONLN);
-    for (int core = 0; core < num_cores; core++) {
-        int start = core * NUM_THREADS / 2;
-        int end = start + NUM_THREADS / 2;
-        for (int i = start; i < end; i++) {
-            CPU_ZERO(&wstate.cpus[i]);
-            CPU_SET(core, &wstate.cpus[i]);
-            pthread_attr_init(&wstate.attribute[i]);
-
-            pthread_attr_setaffinity_np(&wstate.attribute[i],
-                    sizeof(cpu_set_t),
-                    &wstate.cpus[i]);
-
-            pthread_create(&wstate.threads[i],
-                    &wstate.attribute[i],
-                    &normal_job_handler,
-                    (void *) &wstate.thread_id[i]);
-        }
-    }
-    */
-
     for (int i = 0; i < NUM_THREADS; i++) {
         wstate.thread_id[i] = i;
         wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
-
-        // set affinity
-        CPU_ZERO(&wstate.cpus[i]);
-        CPU_SET(i, &wstate.cpus[i]);
-        pthread_attr_init(&wstate.attribute[i]);
-        pthread_attr_setaffinity_np(&wstate.attribute[i],
-                sizeof(cpu_set_t),
-                &wstate.cpus[i]);
-
         pthread_create(&wstate.threads[i],
-                &wstate.attribute[i],
+                NULL,
                 &normal_job_handler,
                 (void *) &wstate.thread_id[i]);
     }
 
-    //pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
+    // set affinity for thread 1 and 2
+    cpu_set_t cpu_set;
+    CPU_ZERO(&cpu_set);
+    CPU_SET(0, &cpu_set);
+    pthread_setaffinity_np(wstate.threads[1], sizeof(cpu_set_t), &cpu_set);
+
+    CPU_ZERO(&cpu_set);
+    CPU_SET(1, &cpu_set);
+    pthread_setaffinity_np(wstate.threads[2], sizeof(cpu_set_t), &cpu_set);
 }
 
 
