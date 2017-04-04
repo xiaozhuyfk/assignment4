@@ -344,7 +344,45 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
 
 }
 
+
 void handle_tick() {
+
+    for (auto &pair : mstate.worker_roster) {
+        Worker_state& wstate = pair.second;
+        if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
+            wstate.idle_time++;
+        }
+    }
+    if (mstate.worker_roster.size() + mstate.requested_workers < 
+        mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 24) {
+            request_new_worker();
+        }
+        int temp1 = mstate.worker_roster.size() + mstate.requested_workers + 1;
+        int temp2 = mstate.pending_cached_jobs.size() - 1;
+        while (temp2 > 0 && temp1 < mstate.max_num_workers) {
+            request_new_worker();
+            temp2--;
+            temp1++;
+        }
+    }
+
+    // discard idle workers
+    for (auto &pair : mstate.worker_roster) {
+        if (pair.first == mstate.first_worker) continue;
+
+        Worker_state& wstate = pair.second;
+        if (wstate.instant_job_count == 0 &&
+                wstate.job_count == 0 &&
+                wstate.idle_time > 2 &&
+                mstate.worker_roster.size() > 1) {
+            mstate.worker_roster.erase(pair.first);
+            kill_worker_node(pair.first);
+            break;
+        }
+    }
+}
+/*void handle_tick() {
 
 <<<<<<< HEAD
     // TODO: you may wish to take action here.  This method is called at
@@ -408,7 +446,6 @@ void handle_tick() {
             temp3-=20;
             temp2++;
         }/*
-*/
     }
 
     // discard idle workers
@@ -425,7 +462,7 @@ void handle_tick() {
             break;
         }
     }
-}
+}*/
 
 
 
