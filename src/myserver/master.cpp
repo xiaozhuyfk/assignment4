@@ -235,7 +235,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             distribute_job_to_worker(worker_handle, req);
         }
     } else {
-        if (mstate.pending_requests.size() > 0) {
+        if (mstate.pending_requests.size() > 0 &&
+                (worker_handle != mstate.first_worker || thread_id != 0)) {
             int tag = mstate.pending_requests.front();
             mstate.pending_requests.pop();
             Request_msg& req = mstate.request_mapping[tag];
