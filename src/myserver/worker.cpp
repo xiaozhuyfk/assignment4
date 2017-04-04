@@ -4,6 +4,8 @@
 #include <sstream>
 #include <glog/logging.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <assert.h>
 
 #include "server/messages.h"
 #include "server/worker.h"
@@ -14,8 +16,10 @@
 #define NUM_THREADS 24
 
 static struct Worker_state {
+        cpu_set_t cpus[2];
         int thread_id[NUM_THREADS];
         pthread_t threads[NUM_THREADS];
+        pthread_attr_t attribute[NUM_THREADS];
         WorkQueue<Request_msg> normal_job_queue[NUM_THREADS];
         //WorkQueue<Request_msg> instant_job_queue;
 } wstate;
@@ -89,16 +93,28 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
-    for (int i = 0; i < NUM_THREADS; i++) {
-        wstate.thread_id[i] = i;
-        wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
-        pthread_create(&wstate.threads[i],
-                NULL,
-                &normal_job_handler,
-                (void *) &wstate.thread_id[i]);
+    int num_cores = 2; //sysconf(_SC_NPROCESSORS_ONLN);
+    for (int core = 0; core < num_cores; core++) {
+        CPU_ZERO(&wstate.cpus[core]);
+        CPU_SET(core, &wstate.cpus[core]);
+
+        int start = core * NUM_THREADS / 2;
+        int end = start + NUM_THREADS / 2;
+        for (int i = start; i < end; i++) {
+            pthread_attr_init(&wstate.attribute[i]);
+
+            pthread_attr_setaffinity_np(&wstate.attribute[i],
+                    sizeof(cpu_set_t),
+                    &wstate.cpus[core]);
+
+            pthread_create(&wstate.threads[i],
+                    &wstate.attribute[i],
+                    &normal_job_handler,
+                    (void *) &wstate.thread_id[i]);
+        }
+
     }
 
-    //pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
 }
 
 
