@@ -62,6 +62,19 @@ static void execute_compareprimes(const Request_msg& req, Response_msg& resp) {
         resp.set_response("There are more primes in second range.");
 }
 
+int assign_thread_to_cpu(int core) {
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (core_id < 0 || core_id >= num_cores)
+        return EINVAL;
+
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+
+    pthread_t current_thread = pthread_self();
+    return pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+}
+
 
 void *normal_job_handler(void *threadarg) {
     int thread_id = *((int *) threadarg);
@@ -93,7 +106,7 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
-    int num_cores = 2; //sysconf(_SC_NPROCESSORS_ONLN);
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
     for (int core = 0; core < num_cores; core++) {
         CPU_ZERO(&wstate.cpus[core]);
         CPU_SET(core, &wstate.cpus[core]);
@@ -115,6 +128,18 @@ void worker_node_init(const Request_msg& params) {
 
     }
 
+    /*
+    for (int i = 0; i < NUM_THREADS; i++) {
+        wstate.thread_id[i] = i;
+        wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
+        pthread_create(&wstate.threads[i],
+                NULL,
+                &normal_job_handler,
+                (void *) &wstate.thread_id[i]);
+    }
+    */
+
+    //pthread_create(&wstate.threads[0], NULL, &instant_job_handler, NULL);
 }
 
 
