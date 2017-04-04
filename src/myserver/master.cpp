@@ -516,7 +516,7 @@ void distribute_job(Request_msg& req) {
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
         } else {
-            mstate.worker_roster[job_receiver].processing_cached_job = true;
+            mstate.worker_roster[job_receiver].processing_cached_job[req.get_thread_id() - 1] = true;
             mstate.worker_roster[job_receiver].job_count++;
             mstate.worker_roster[job_receiver].idle_time = 0;
             mstate.worker_roster[job_receiver].work_estimate[req.get_thread_id()] +=
