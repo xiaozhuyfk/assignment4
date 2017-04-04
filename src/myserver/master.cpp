@@ -355,13 +355,25 @@ void handle_tick() {
     // TODO: you may wish to take action here.  This method is called at
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
-
+    int temp = mstate.pending_cached_jobs.size();
+    int temp3 = mstate.pending_requests.size();
     if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 15 ||
+        int temp2 = mstate.worker_roster.size() + mstate.requested_workers;
+        if (mstate.pending_requests.size() > 20 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
+        temp--;
+        temp3-=20
+        temp2++;
+        while ((temp || temp3 > 20) && temp2 < mstate.max_num_workers) {
+            request_new_worker();
+            temp--;
+            temp3-=20;
+            temp2++;
+        }/*
+*/
     }
 
     // discard idle workers
