@@ -8,6 +8,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include <set>
 
 #include "server/messages.h"
 #include "server/master.h"
@@ -107,7 +108,7 @@ static struct Master_state {
         std::map<int, Request_msg> request_mapping;
 
         // queue of idle workers (no current jobs)
-        std::queue<Worker_handle> idle_workers;
+        std::set<Worker_handle> idle_workers;
 
         // queue of requests that not assigned to workers
         std::queue<int> pending_requests;
@@ -156,7 +157,7 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     mstate.worker_roster[worker_handle].processing_cached_job = false;
     mstate.worker_roster[worker_handle].work_estimate =
             std::vector<int>(NUM_THREADS, 0);
-    mstate.idle_workers.push(worker_handle);
+    mstate.idle_workers.insert(worker_handle);
 
     // Now that a worker is booted, let the system know the server is
     // ready to begin handling client requests.  The test harness will
@@ -234,7 +235,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
             mstate.pending_cached_jobs.pop();
             distribute_job_to_worker(worker_handle, mstate.request_mapping[tag]);
         } else {
-            mstate.idle_workers.push(worker_handle);
+            mstate.idle_workers.insert(worker_handle);
         }
     } else {
         if (mstate.pending_requests.size() > 0 && thread_id > 0) {
@@ -416,16 +417,15 @@ void handle_tick() {
 
     // discard idle workers
 
-    /*
     for (auto &pair : mstate.worker_roster) {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
             mstate.worker_roster.erase(pair.first);
+            mstate.idle_workers.erase(pair.first);
             kill_worker_node(pair.first);
             break;
         }
     }
-    */
 
     /*
     for (auto &pair : mstate.worker_roster) {
@@ -525,7 +525,8 @@ void distribute_job(Request_msg& req) {
             mstate.pending_cached_jobs.push(tag);
         } else {
             DLOG(INFO) << 2 << std::endl;
-            Worker_handle job_receiver = mstate.idle_workers.front();
+            Worker_handle job_receiver = *mstate.idle_workers.begin();
+            /*
             DLOG(INFO) << "yoyo job receiver is "
                     << job_receiver << std::endl;
             if (mstate.worker_roster.find(job_receiver) == mstate.worker_roster.end()) {
@@ -533,8 +534,9 @@ void distribute_job(Request_msg& req) {
             } else {
                 DLOG(INFO) << "found" << std::endl;
             }
+            */
             DLOG(INFO) << 3 << std::endl;
-            mstate.idle_workers.pop();
+            mstate.idle_workers.erase(job_receiver);
             DLOG(INFO) << 4 << std::endl;
             mstate.worker_roster[job_receiver].processing_cached_job = true;
             DLOG(INFO) << 5 << std::endl;
