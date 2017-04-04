@@ -224,6 +224,13 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         Request_msg& req = mstate.request_mapping[tag];
         req.set_thread_id(thread_id);
         distribute_job_to_worker(worker_handle, req);
+    }
+    if (!wstate.processing_cached_job && mstate.pending_cached_jobs.size() > 0) {
+        int tag = mstate.pending_cached_jobs.front();
+        mstate.pending_cached_jobs.pop();
+        Request_msg& req = mstate.request_mapping[tag];
+        req.set_thread_id(thread_id);
+        distribute_job_to_worker(worker_handle, req);
     } else if (mstate.pending_requests.size() > 0 && thread_id > 0) {
         int tag = mstate.pending_requests.front();
         mstate.pending_requests.pop();
