@@ -357,17 +357,20 @@ void handle_tick() {
     // 'master_node_init'.
     int temp = mstate.pending_cached_jobs.size();
     int temp3 = mstate.pending_requests.size();
-    if (mstate.worker_roster.size() + mstate.requested_workers <
-            mstate.max_num_workers) {
-        int temp2 = mstate.worker_roster.size() + mstate.requested_workers;
+    if (mstate.worker_roster.size() < mstate.max_num_workers) {
+        int temp2 = mstate.worker_roster.size();
+        int temp4 = mstate.requested_workers;
+
         if (mstate.pending_requests.size() > 20 ||
-                mstate.pending_cached_jobs.size() > 1) {
+                mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
+        temp4--;
         temp--;
-        temp3-=20;
+        temp3-=15;
         temp2++;
-        while (temp > 0  && temp3 > 20 && temp2 < mstate.max_num_workers) {
+
+        while (temp > 0  && temp3 > 15 && temp2 < mstate.max_num_workers && temp4 > 0) {
             request_new_worker();
             temp--;
             temp3-=20;
