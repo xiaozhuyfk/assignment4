@@ -366,57 +366,17 @@ void handle_tick() {
             mstate.pending_requests.size() > 20) {
         request_new_worker();
     }
-    /*
-    while (mstate.pending_requests.size() > 0) {
-        int tag = mstate.pending_requests.front();
-        Request_msg req = mstate.request_mapping[tag];
-        if (req.get_arg("cmd") == "projectidea") {
-            if (mstate.idle_workers.size() == 0) {
-                break;
-            } else {
-                Worker_handle job_receiver = mstate.idle_workers.front();
-                mstate.idle_workers.pop();
-                mstate.worker_roster[job_receiver].processing_cached_job = true;
-                mstate.worker_roster[job_receiver].job_count++;
-                mstate.worker_roster[job_receiver].idle_time = 0;
-                mstate.worker_roster[job_receiver].work_estimate[1] += work_estimate(req);
-                req.set_thread_id(1);
-                send_request_to_worker(job_receiver, req);
-                mstate.pending_requests.pop();
-            }
-        } else {
-            Worker_handle job_receiver = find_best_receiver(req);
-            if (job_receiver == NULL) {
-                break;
-            } else {
-                mstate.worker_roster[job_receiver].job_count++;
-                mstate.worker_roster[job_receiver].idle_time = 0;
-                mstate.worker_roster[job_receiver].work_estimate[req.get_thread_id()] +=
-                        work_estimate(req);
-                send_request_to_worker(job_receiver, req);
-                mstate.pending_requests.pop();
-            }
-        }
-    }
-    */
 
-    // request new workers
-    /*
-    if (mstate.worker_roster.size() + mstate.requested_workers <
-            mstate.max_num_workers) {
-        int min_job_count = INT_MAX;
-        for (auto const &pair : mstate.worker_roster) {
-            Worker_state wstate = pair.second;
-            if (wstate.job_count < min_job_count)
-                min_job_count = wstate.job_count;
+    // send pending cached jobs to available workers
+    for (auto worker : mstate.idle_workers) {
+        if (mstate.pending_cached_jobs.size() > 0) {
+            int tag = mstate.pending_cached_jobs.front();
+            mstate.pending_cached_jobs.pop();
+            distribute_job_to_worker(worker, mstate.request_mapping[tag]);
         }
-        if (min_job_count != INT_MAX && min_job_count > JOB_COUNT_THREASHOLD)
-            request_new_worker();
     }
-    */
 
     // discard idle workers
-
     for (auto &pair : mstate.worker_roster) {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
