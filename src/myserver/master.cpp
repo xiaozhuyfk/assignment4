@@ -361,14 +361,14 @@ void handle_tick() {
         int temp2 = mstate.worker_roster.size();
 
         if (mstate.pending_requests.size() > 20 ||
-                mstate.pending_cached_jobs.size() > 0) {
+                mstate.pending_cached_jobs.size() > 2) {
             request_new_worker();
         }
         temp--;
         temp3-=20;
         temp2++;
 
-        while (temp > 0  && temp3 > 20 && temp2 < mstate.max_num_workers) {
+        while ((temp > 0  || temp3 > 20) && temp2 < mstate.max_num_workers) {
             request_new_worker();
             temp--;
             temp3-=20;
