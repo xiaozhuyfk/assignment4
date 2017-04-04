@@ -77,19 +77,6 @@ void *normal_job_handler(void *threadarg) {
     return NULL;
 }
 
-/*
-void *instant_job_handler(void *threadarg) {
-    while (1) {
-        Request_msg req = wstate.instant_job_queue.get_work();
-        Response_msg resp(req.get_tag());
-        execute_work(req, resp);
-        worker_send_response(resp);
-    }
-
-    return NULL;
-}
-*/
-
 
 void worker_node_init(const Request_msg& params) {
 

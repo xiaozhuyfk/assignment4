@@ -94,6 +94,7 @@ static struct Master_state {
         int max_num_workers;
         int requested_workers;
         int next_tag;
+        Worker_handle first_worker;
 
         // all workers alive
         std::map<Worker_handle, Worker_state> worker_roster;
@@ -128,6 +129,7 @@ void master_node_init(int max_workers, int& tick_period) {
     mstate.next_tag = 0;
     mstate.max_num_workers = max_workers;
     mstate.requested_workers = 0;
+    mstate.first_worker = NULL;
 
     // don't mark the server as ready until the server is ready to go.
     // This is actually when the first worker is up and running, not
@@ -151,6 +153,8 @@ void handle_new_worker_online(Worker_handle worker_handle, int tag) {
     mstate.worker_roster[worker_handle].processing_cached_job = false;
     mstate.worker_roster[worker_handle].work_estimate =
             std::vector<int>(NUM_THREADS, 0);
+
+    if (mstate.first_worker == NULL) mstate.first_worker = worker_handle;
 
     // Now that a worker is booted, let the system know the server is
     // ready to begin handling client requests.  The test harness will
@@ -192,7 +196,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     // Deal with compare prime response
     if (mstate.tag_head_map.find(tag) != mstate.tag_head_map.end()) {
         int tag_head = mstate.tag_head_map[tag];
-        mstate.cmp_prime_map[tag_head][tag-tag_head - 1] = resp;
+        mstate.cmp_prime_map[tag_head][tag - tag_head - 1] = resp;
         bool prime_all_finish = true;
 
         for (Response_msg& r : mstate.cmp_prime_map[tag_head]) {
@@ -217,16 +221,6 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     mstate.request_mapping.erase(tag);
 
     if (job == "projectidea") wstate.processing_cached_job = false;
-
-    /*
-    if (job == "projectidea" && mstate.pending_cached_jobs.size() > 0) {
-        int tag = mstate.pending_cached_jobs.front();
-        mstate.pending_cached_jobs.pop();
-        Request_msg& req = mstate.request_mapping[tag];
-        req.set_thread_id(thread_id);
-        distribute_job_to_worker(worker_handle, req);
-    }
-    */
 
     if (!wstate.processing_cached_job && mstate.pending_cached_jobs.size() > 0) {
         int tag = mstate.pending_cached_jobs.front();
@@ -352,6 +346,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
 
 void handle_tick() {
 
+<<<<<<< HEAD
     // TODO: you may wish to take action here.  This method is called at
     // fixed time intervals, according to how you set 'tick_period' in
     // 'master_node_init'.
@@ -362,6 +357,45 @@ void handle_tick() {
 
         if (mstate.pending_requests.size() > 20 ||
                 mstate.pending_cached_jobs.size() > 2) {
+=======
+    for (auto &pair : mstate.worker_roster) {
+        Worker_state& wstate = pair.second;
+        if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
+            wstate.idle_time++;
+        }
+    }
+
+    // available for 2 more workers
+    if (mstate.worker_roster.size() + mstate.requested_workers + 2 <
+                mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 24 ||
+                mstate.pending_cached_jobs.size() > 2) {
+            request_new_worker();
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 12 ||
+                mstate.pending_cached_jobs.size() > 1) {
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    } else if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
+                mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 12 ||
+                mstate.pending_cached_jobs.size() > 1) {
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    } else if (mstate.worker_roster.size() + mstate.requested_workers <
+            mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+>>>>>>> 994462490f5157ba566f8db43c81164c8d7b88c1
             request_new_worker();
         }
         temp--;
@@ -379,9 +413,12 @@ void handle_tick() {
 
     // discard idle workers
     for (auto &pair : mstate.worker_roster) {
+        if (pair.first == mstate.first_worker) continue;
+
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 &&
                 wstate.job_count == 0 &&
+                wstate.idle_time > 2 &&
                 mstate.worker_roster.size() > 1) {
             mstate.worker_roster.erase(pair.first);
             kill_worker_node(pair.first);
@@ -425,29 +462,17 @@ int work_estimate(Request_msg& req) {
     return estimation;
 }
 
-Worker_handle find_best_cached_job_receiver(Request_msg& req) {
-    for (auto const &pair : mstate.worker_roster) {
-        Worker_handle worker = pair.first;
-        Worker_state wstate = pair.second;
-
-        if (wstate.processing_cached_job) continue;
-
-        for (int i = 1; i < NUM_THREADS; i++) {
-            if (wstate.work_estimate[i] == 0) {
-                req.set_thread_id(i);
-                return worker;
-            }
-        }
-    }
-    return NULL;
-}
 
 Worker_handle find_best_receiver(Request_msg& req) {
     for (auto const &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
-        for (int i = 1; i < NUM_THREADS; i++) {
+        if (req.get_arg("cmd") == "projectidea" &&
+                wstate.processing_cached_job) continue;
+
+        int start_thread = (worker == mstate.first_worker) ? 1 : 0;
+        for (int i = start_thread; i < NUM_THREADS; i++) {
             if (wstate.work_estimate[i] == 0) {
                 req.set_thread_id(i);
                 return worker;
@@ -462,7 +487,7 @@ void distribute_job(Request_msg& req) {
     int tag = req.get_tag() / 100;
 
     if (req.get_arg("cmd") == "tellmenow") {
-        Worker_handle job_receiver = mstate.worker_roster.begin()->first;
+        Worker_handle job_receiver = mstate.first_worker;
         req.set_thread_id(0);
         mstate.worker_roster[job_receiver].instant_job_count++;
         mstate.worker_roster[job_receiver].work_estimate[0]++;
@@ -470,7 +495,7 @@ void distribute_job(Request_msg& req) {
         send_request_to_worker(job_receiver, req);
     // if it is an cached job
     } else if (req.get_arg("cmd") == "projectidea") {
-        Worker_handle job_receiver = find_best_cached_job_receiver(req);
+        Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
         } else {
