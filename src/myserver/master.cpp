@@ -454,8 +454,8 @@ Worker_handle find_best_receiver(Request_msg& req) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
-        if (req.get_arg("cmd") == "projectidea" &&
-                wstate.processing_cached_job) continue;
+        //if (req.get_arg("cmd") == "projectidea" &&
+        //        wstate.processing_cached_job) continue;
 
         int start_thread = (worker == mstate.first_worker) ? 1 : 0;
         for (int i = start_thread; i < NUM_THREADS; i++) {

@@ -118,8 +118,17 @@ void worker_node_init(const Request_msg& params) {
     for (int i = 0; i < NUM_THREADS; i++) {
         wstate.thread_id[i] = i;
         wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
+
+        // set affinity
+        CPU_ZERO(&wstate.cpus[i]);
+        CPU_SET(core, &wstate.cpus[i]);
+        pthread_attr_init(&wstate.attribute[i]);
+        pthread_attr_setaffinity_np(&wstate.attribute[i],
+                sizeof(cpu_set_t),
+                &wstate.cpus[i]);
+
         pthread_create(&wstate.threads[i],
-                NULL,
+                &wstate.attribute[i],
                 &normal_job_handler,
                 (void *) &wstate.thread_id[i]);
     }
