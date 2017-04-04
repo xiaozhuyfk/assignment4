@@ -360,10 +360,12 @@ void handle_tick() {
         }
         int temp1 = mstate.worker_roster.size() + mstate.requested_workers + 1;
         int temp2 = mstate.pending_cached_jobs.size() - 1;
-        while (temp2 > 0 && temp1 < mstate.max_num_workers) {
+        int temp3 = mstate.pending_requests.size();
+        while ((temp2 > 0 || temp3 > 40) && temp1 < mstate.max_num_workers) {
             request_new_worker();
             temp2--;
             temp1++;
+            temp3-=40;
         }
     }
 
