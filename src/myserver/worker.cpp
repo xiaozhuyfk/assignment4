@@ -104,21 +104,6 @@ void worker_node_init(const Request_msg& params) {
             << params.get_arg("name")
             << " ****\n";
 
-    pthread_attr_t attr;
-    cpu_set_t cpus;
-    pthread_attr_init(&attr);
-
-    for (int i = 0; i < numberOfProcessors; i++) {
-       CPU_ZERO(&cpus);
-       CPU_SET(i, &cpus);
-       pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-       pthread_create(&threads[i], &attr, DoWork, NULL);
-    }
-
-    for (int i = 0; i < numberOfProcessors; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
     for (int i = 0; i < NUM_THREADS; i++) {
         wstate.thread_id[i] = i;
         wstate.normal_job_queue[i] = WorkQueue<Request_msg>();
@@ -129,7 +114,7 @@ void worker_node_init(const Request_msg& params) {
         CPU_SET(i, &cpus);
         pthread_attr_setaffinity_np(&wstate.attribute[i], sizeof(cpu_set_t), &cpus);
         pthread_create(&wstate.threads[i],
-                NULL,
+                &wstate.attribute[i],
                 &normal_job_handler,
                 (void *) &wstate.thread_id[i]);
     }
