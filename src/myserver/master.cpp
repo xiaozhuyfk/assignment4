@@ -381,7 +381,7 @@ void handle_tick() {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 &&
                 wstate.job_count == 0 &&
-                wstate.idle_time > 3 &&
+                wstate.idle_time > 2 &&
                 mstate.worker_roster.size() > 1) {
             mstate.worker_roster.erase(pair.first);
             kill_worker_node(pair.first);
@@ -447,6 +447,9 @@ Worker_handle find_best_receiver(Request_msg& req) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
+        if (req.get_arg("cmd") == "projectidea" &&
+                wstate.processing_cached_job) continue;
+
         for (int i = 1; i < NUM_THREADS; i++) {
             if (wstate.work_estimate[i] == 0) {
                 req.set_thread_id(i);
@@ -470,7 +473,7 @@ void distribute_job(Request_msg& req) {
         send_request_to_worker(job_receiver, req);
     // if it is an cached job
     } else if (req.get_arg("cmd") == "projectidea") {
-        Worker_handle job_receiver = find_best_cached_job_receiver(req);
+        Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
             mstate.pending_requests.push(tag);
         } else {
