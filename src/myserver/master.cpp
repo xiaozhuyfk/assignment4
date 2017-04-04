@@ -544,22 +544,28 @@ void distribute_job(Request_msg& req) {
 void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
     Worker_state& wstate = mstate.worker_roster[worker];
     if (req.get_arg("cmd") == "tellmenow") {
+        DLOG(INFO) << "stell" << std::endl;
         req.set_thread_id(0);
         wstate.instant_job_count++;
         wstate.work_estimate[0]++;
         wstate.idle_time = 0;
         send_request_to_worker(worker, req);
+        DLOG(INFO) << "etell" << std::endl;
     } else if (req.get_arg("cmd") == "projectidea") {
+        DLOG(INFO) << "sproject" << std::endl;
         wstate.processing_cached_job[req.get_thread_id() - 1] = true;
         wstate.job_count++;
         wstate.idle_time = 0;
         wstate.work_estimate[req.get_thread_id()] += work_estimate(req);
         send_request_to_worker(worker, req);
+        DLOG(INFO) << "eproject" << std::endl;
     } else {
+        DLOG(INFO) << "sother" << std::endl;
         wstate.job_count++;
         wstate.idle_time = 0;
         wstate.work_estimate[req.get_thread_id()] += work_estimate(req);
         send_request_to_worker(worker, req);
+        DLOG(INFO) << "eother" << std::endl;
     }
 }
 
