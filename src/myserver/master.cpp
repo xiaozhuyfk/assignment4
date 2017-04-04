@@ -353,7 +353,15 @@ void handle_tick() {
     }
 
     // available for 2 more workers
-    if (mstate.worker_roster.size() + mstate.requested_workers + 1<
+    if (mstate.worker_roster.size() + mstate.requested_workers + 2 <
+                mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+            request_new_worker();
+            request_new_worker();
+        }
+    } else if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
                 mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 0 ||
                 mstate.pending_cached_jobs.size() > 0) {
