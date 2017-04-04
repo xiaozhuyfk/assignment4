@@ -121,7 +121,7 @@ void worker_node_init(const Request_msg& params) {
 
         // set affinity
         CPU_ZERO(&wstate.cpus[i]);
-        CPU_SET(core, &wstate.cpus[i]);
+        CPU_SET(i, &wstate.cpus[i]);
         pthread_attr_init(&wstate.attribute[i]);
         pthread_attr_setaffinity_np(&wstate.attribute[i],
                 sizeof(cpu_set_t),
