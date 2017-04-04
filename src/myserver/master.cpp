@@ -365,7 +365,7 @@ void handle_tick() {
             request_new_worker();
         }
         temp--;
-        temp3-=20
+        temp3-=20;
         temp2++;
         while ((temp || temp3 > 20) && temp2 < mstate.max_num_workers) {
             request_new_worker();
