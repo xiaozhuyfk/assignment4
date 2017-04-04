@@ -16,8 +16,8 @@
 #define NUM_THREADS 24
 
 static struct Worker_state {
-        cpu_set_t cpus[2];
         int thread_id[NUM_THREADS];
+        cpu_set_t cpus[NUM_THREADS];
         pthread_t threads[NUM_THREADS];
         pthread_attr_t attribute[NUM_THREADS];
         WorkQueue<Request_msg> normal_job_queue[NUM_THREADS];
@@ -95,17 +95,16 @@ void worker_node_init(const Request_msg& params) {
 
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
     for (int core = 0; core < num_cores; core++) {
-        CPU_ZERO(&wstate.cpus[core]);
-        CPU_SET(core, &wstate.cpus[core]);
-
         int start = core * NUM_THREADS / 2;
         int end = start + NUM_THREADS / 2;
         for (int i = start; i < end; i++) {
+            CPU_ZERO(&wstate.cpus[i]);
+            CPU_SET(core, &wstate.cpus[i]);
             pthread_attr_init(&wstate.attribute[i]);
 
             pthread_attr_setaffinity_np(&wstate.attribute[i],
                     sizeof(cpu_set_t),
-                    &wstate.cpus[core]);
+                    &wstate.cpus[i]);
 
             pthread_create(&wstate.threads[i],
                     &wstate.attribute[i],
