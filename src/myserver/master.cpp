@@ -20,7 +20,9 @@
 #define WORK_THREASHOLD 200
 
 #define GET_THREAD_ID(req) (req.get_tag() % 100)
-#define SET_THREAD_ID(req, id) req.set_tag((req.get_tag() / 100) * 100 + id)
+#define SET_THREAD_ID(req, n) req.set_tag((req.get_tag() / 100) * 100 + n)
+
+int GET_THREAD_ID()
 
 /*
  * Helper function headers
