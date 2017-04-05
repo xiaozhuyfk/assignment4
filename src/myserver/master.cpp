@@ -367,6 +367,10 @@ void handle_tick() {
             << mstate.pending_requests.size()
             << ", Pending cached jobs size = "
             << mstate.pending_cached_jobs.size()
+            << ", current workers = "
+            << mstate.worker_roster.size()
+            << ", requested workers = "
+            << mstate.requested_workers
             << std::endl;
 
     for (auto &pair : mstate.worker_roster) {
