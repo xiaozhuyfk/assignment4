@@ -346,17 +346,13 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
                 worker_req.get_arg("n") :
                 worker_req.get_arg("x");
 
-        DLOG(INFO) << "stop here?" << std::endl;
-
         // Check if the request is cached
         if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
             Response_msg resp = mstate.cache_map[test_key];
             send_client_response(client_handle, resp);
         // if it is an instant job, send to worker directly
         } else {
-            DLOG(INFO) << "stop here?" << std::endl;
             distribute_job(worker_req);
-            DLOG(INFO) << "stop here?" << std::endl;
         }
     }
 
@@ -535,8 +531,11 @@ void distribute_job(Request_msg& req) {
     }
     // other jobs (418wisdom, countprimes)
     else {
+        DLOG(INFO) << "dafuck" << std::endl;
         Worker_handle job_receiver = find_best_receiver(req);
+        DLOG(INFO) << "dafuck" << std::endl;
         Worker_state& wstate = mstate.worker_roster[job_receiver];
+        DLOG(INFO) << "dafuck" << std::endl;
         if (job_receiver == NULL) {
             DLOG(INFO) << "YO it is null" << std::endl;
             mstate.pending_requests.push(tag);
