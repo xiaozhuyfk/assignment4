@@ -352,6 +352,24 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         } else {
             distribute_job(worker_req);
         }
+
+        if (mstate.worker_roster.size() + mstate.requested_workers + 1 < 
+            mstate.max_num_workers) {
+            if (mstate.pending_requests.size() > 24 ||
+                    mstate.pending_cached_jobs.size() > 1) {
+                request_new_worker();
+                request_new_worker();
+            } else if (mstate.pending_requests.size() > 16 ||
+                    mstate.pending_cached_jobs.size() > 0) {
+                request_new_worker();
+            }
+        } else if (mstate.worker_roster.size() + mstate.requested_workers <
+                mstate.max_num_workers) {
+            if (mstate.pending_requests.size() > 16 ||
+                    mstate.pending_cached_jobs.size() > 0) {
+                request_new_worker();
+            }
+        }
     }
 
     // We're done!  This event handler now returns, and the master
@@ -404,24 +422,6 @@ void handle_tick() {
         }
     }
     */
-
-    if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
-                mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 16 ||
-                mstate.pending_cached_jobs.size() > 1) {
-            request_new_worker();
-            request_new_worker();
-        } else if (mstate.pending_requests.size() > 10 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    } else if (mstate.worker_roster.size() + mstate.requested_workers <
-            mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 10 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    }
 
     // discard idle workers
     for (auto &pair : mstate.worker_roster) {
