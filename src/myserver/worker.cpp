@@ -15,8 +15,6 @@
 
 #define NUM_THREADS 24
 
-#define GET_THREAD_ID(req) (req.get_tag() % 100)
-#define SET_THREAD_ID(req, id) req.set_tag((req.get_tag() / 100) * 100 + id)
 
 static struct Worker_state {
         int thread_id[NUM_THREADS];
@@ -74,7 +72,7 @@ void *normal_job_handler(void *threadarg) {
             execute_work(req, resp);
         }
 
-        SET_THREAD_ID(resp, thread_id);
+        resp.set_tag((resp.get_tag() / 100) * 100 + thread_id);
         worker_send_response(resp);
     }
 
@@ -121,6 +119,6 @@ void worker_handle_request(const Request_msg& req) {
                 << req.get_request_string()
                 << "]\n";
 
-    int thread_id = GET_THREAD_ID(req);
+    int thread_id = req.get_tag() % 100;
     wstate.normal_job_queue[thread_id].put_work(req);
 }
