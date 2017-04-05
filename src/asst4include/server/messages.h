@@ -30,13 +30,6 @@ class Request_msg {
             return tag;
         }
 
-        void set_thread_id(int id) {
-            tag = (tag / 100) * 100 + id;
-        }
-        int get_thread_id() const {
-            return tag % 100;
-        }
-
         std::string get_request_string() const;
 };
 
@@ -61,13 +54,6 @@ class Response_msg {
         }
         int get_tag() const {
             return tag;
-        }
-
-        void set_thread_id(int id) {
-            tag = (tag / 100) * 100 + id;
-        }
-        int get_thread_id() const {
-            return tag % 100;
         }
 
         std::string get_response() const {
