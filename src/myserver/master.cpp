@@ -363,6 +363,12 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
 
 void handle_tick() {
 
+    DLOG(INFO) << "Pending requests size = "
+            << mstate.pending_requests.size()
+            << ", Pending cached jobs size = "
+            << mstate.pending_cached_jobs.size()
+            << std::endl;
+
     for (auto &pair : mstate.worker_roster) {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 && wstate.job_count == 0) {
@@ -405,8 +411,22 @@ void handle_tick() {
         }
     }
     */
-
-    if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
+    if (mstate.worker_roster.size() + mstate.requested_workers + 2 <
+                mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 36 ||
+                mstate.pending_cached_jobs.size() > 2) {
+            request_new_worker();
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 24 ||
+                mstate.pending_cached_jobs.size() > 1) {
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 12 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    } else if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
                 mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 24 ||
                 mstate.pending_cached_jobs.size() > 1) {
