@@ -521,10 +521,10 @@ void distribute_job(Request_msg& req) {
     // if it is an cached job
     } else if (req.get_arg("cmd") == "projectidea") {
         Worker_handle job_receiver = find_best_receiver(req);
-        Worker_state& wstate = mstate.worker_roster[job_receiver];
         if (job_receiver == NULL) {
             mstate.pending_cached_jobs.push(tag);
         } else {
+            Worker_state& wstate = mstate.worker_roster[job_receiver];
             wstate.processing_cached_job[get_thread_id(req) - 1] = true;
             wstate.job_count++;
             wstate.idle_time = 0;
@@ -535,12 +535,12 @@ void distribute_job(Request_msg& req) {
     // other jobs (418wisdom, countprimes)
     else {
         Worker_handle job_receiver = find_best_receiver(req);
-        Worker_state& wstate = mstate.worker_roster[job_receiver];
         if (job_receiver == NULL) {
             DLOG(INFO) << "YO it is null" << std::endl;
             mstate.pending_requests.push(tag);
             DLOG(INFO) << "what happend?" << std::endl;
         } else {
+            Worker_state& wstate = mstate.worker_roster[job_receiver];
             DLOG(INFO) << "YO not null" << std::endl;
             wstate.job_count++;
             wstate.idle_time = 0;
