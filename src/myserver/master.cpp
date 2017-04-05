@@ -492,6 +492,7 @@ Worker_handle find_best_receiver(Request_msg& req) {
         } else {
             int start_thread = (worker == mstate.first_worker) ? 1 : 0;
             for (int i = start_thread; i < NUM_THREADS; i++) {
+                if (i == 1 || i == 2) continue;
                 if (wstate.work_estimate[i] == 0) {
                     req.set_thread_id(i);
                     return worker;
