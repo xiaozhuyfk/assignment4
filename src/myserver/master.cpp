@@ -480,11 +480,11 @@ Worker_handle find_best_receiver(Request_msg& req) {
         Worker_state wstate = pair.second;
 
         if (req.get_arg("cmd") == "projectidea") {
-            if (wstate.processing_cached_job[0]) {
+            if (!wstate.processing_cached_job[0]) {
                 assert(wstate.work_estimate[1] == 0);
                 req.set_thread_id(1);
                 return worker;
-            } else if (wstate.processing_cached_job[1]) {
+            } else if (!wstate.processing_cached_job[1]) {
                 assert(wstate.work_estimate[2] == 0);
                 req.set_thread_id(2);
                 return worker;
