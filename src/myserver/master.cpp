@@ -222,12 +222,13 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     mstate.client_mapping.erase(tag);
     mstate.request_mapping.erase(tag);
 
-    if (job == "projectidea")
+    if (job == "projectidea") {
+        assert(thread_id == 1 || thread_id == 2);
         wstate.processing_cached_job[thread_id - 1] = false;
+    }
 
-    if (thread_id == 1 || thread_id == 2) {
-        if (!wstate.processing_cached_job[thread_id - 1] &&
-                mstate.pending_cached_jobs.size() > 0) {
+    if (job == "projectidea") {
+        if (mstate.pending_cached_jobs.size() > 0) {
             int tag = mstate.pending_cached_jobs.front();
             mstate.pending_cached_jobs.pop();
             Request_msg& req = mstate.request_mapping[tag];
@@ -480,9 +481,11 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
         if (req.get_arg("cmd") == "projectidea") {
             if (wstate.processing_cached_job[0]) {
+                assert(wstate.work_estimate[1] == 0);
                 req.set_thread_id(1);
                 return worker;
             } else if (wstate.processing_cached_job[1]) {
+                assert(wstate.work_estimate[2] == 0);
                 req.set_thread_id(2);
                 return worker;
             }
