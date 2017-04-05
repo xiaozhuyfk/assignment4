@@ -235,7 +235,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     if ((thread_id == 1 || thread_id == 2) &&
             mstate.pending_cached_jobs.size() > 0 && 
-            mstate.pending_cached_jobs.size() * 10 < mstate.pending_requests.size()) {
+            (mstate.pending_requests.size() < 24)) {
         int tag = mstate.pending_cached_jobs.front();
         mstate.pending_cached_jobs.pop();
         Request_msg& req = mstate.request_mapping[tag];
