@@ -291,7 +291,6 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.next_tag + 5 :
             mstate.next_tag + 1;
 
-    DLOG(INFO) << "stop here?" << std::endl;
 
     // if we get a compare primes job
     if (worker_req.get_arg("cmd") == "compareprimes") {
@@ -347,13 +346,17 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
                 worker_req.get_arg("n") :
                 worker_req.get_arg("x");
 
+        DLOG(INFO) << "stop here?" << std::endl;
+
         // Check if the request is cached
         if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
             Response_msg resp = mstate.cache_map[test_key];
             send_client_response(client_handle, resp);
         // if it is an instant job, send to worker directly
         } else {
+            DLOG(INFO) << "stop here?" << std::endl;
             distribute_job(worker_req);
+            DLOG(INFO) << "stop here?" << std::endl;
         }
     }
 
