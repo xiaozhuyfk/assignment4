@@ -470,7 +470,7 @@ int work_estimate(Request_msg& req) {
 Worker_handle find_best_receiver(Request_msg& req) {
     for (auto &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
-        Worker_state wstate = pair.second;
+        Worker_state& wstate = pair.second;
 
         if (req.get_arg("cmd") == "projectidea") {
             if (!wstate.processing_cached_job[0]) {
