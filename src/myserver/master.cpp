@@ -360,13 +360,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     }
 
     // scale up
-    if (mstate.worker_roster.size() + mstate.requested_workers <
-            mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 12 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    }
+    scale_up();
 
     // We're done!  This event handler now returns, and the master
     // process calls another one of your handlers when action is
@@ -451,7 +445,7 @@ void scale_down() {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 &&
                 wstate.job_count == 0 &&
-                wstate.idle_time > 2 &&
+                wstate.idle_time > 1 &&
                 mstate.worker_roster.size() > 1) {
             mstate.worker_roster.erase(pair.first);
             kill_worker_node(pair.first);
