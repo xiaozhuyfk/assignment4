@@ -211,7 +211,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
         if (prime_all_finish) {
             Response_msg cmp_prime_resp(tag_head);
-            compute_cmp_prime_resp(cmp_prime_resp, mstate.cmp_prime_map[tag_head]);
+            compute_cmp_prime_resp(cmp_prime_resp,
+                    mstate.cmp_prime_map[tag_head]);
             send_client_response(client, cmp_prime_resp);
         }
     } else {
@@ -491,7 +492,6 @@ Worker_handle find_best_receiver(Request_msg& req) {
 
 void distribute_job(Request_msg& req) {
     int tag = req.get_tag() / 100;
-    int thread_id = GET_THREAD_ID(req);
 
     // if instant job, send to the first worker on thread 0 directly
     if (req.get_arg("cmd") == "tellmenow") {
@@ -509,10 +509,10 @@ void distribute_job(Request_msg& req) {
         if (job_receiver == NULL) {
             mstate.pending_cached_jobs.push(tag);
         } else {
-            wstate.processing_cached_job[thread_id - 1] = true;
+            wstate.processing_cached_job[GET_THREAD_ID(req) - 1] = true;
             wstate.job_count++;
             wstate.idle_time = 0;
-            wstate.work_estimate[thread_id] += work_estimate(req);
+            wstate.work_estimate[GET_THREAD_ID(req)] += work_estimate(req);
             send_request_to_worker(job_receiver, req);
         }
     }
@@ -525,7 +525,7 @@ void distribute_job(Request_msg& req) {
         } else {
             wstate.job_count++;
             wstate.idle_time = 0;
-            wstate.work_estimate[thread_id] += work_estimate(req);
+            wstate.work_estimate[GET_THREAD_ID(req)] += work_estimate(req);
             send_request_to_worker(job_receiver, req);
         }
     }
@@ -534,7 +534,6 @@ void distribute_job(Request_msg& req) {
 
 void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
     Worker_state& wstate = mstate.worker_roster[worker];
-    int thread_id = GET_THREAD_ID(req);
     if (req.get_arg("cmd") == "tellmenow") {
         SET_THREAD_ID(req, 0);
         wstate.instant_job_count++;
@@ -542,15 +541,15 @@ void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
         wstate.idle_time = 0;
         send_request_to_worker(worker, req);
     } else if (req.get_arg("cmd") == "projectidea") {
-        wstate.processing_cached_job[thread_id - 1] = true;
+        wstate.processing_cached_job[GET_THREAD_ID(req) - 1] = true;
         wstate.job_count++;
         wstate.idle_time = 0;
-        wstate.work_estimate[thread_id] += work_estimate(req);
+        wstate.work_estimate[GET_THREAD_ID(req)] += work_estimate(req);
         send_request_to_worker(worker, req);
     } else {
         wstate.job_count++;
         wstate.idle_time = 0;
-        wstate.work_estimate[thread_id] += work_estimate(req);
+        wstate.work_estimate[GET_THREAD_ID(req)] += work_estimate(req);
         send_request_to_worker(worker, req);
     }
 }
