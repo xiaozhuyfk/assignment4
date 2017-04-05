@@ -291,6 +291,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.next_tag + 5 :
             mstate.next_tag + 1;
 
+    DLOG(INFO) << "stop here?" << std::endl;
+
     // if we get a compare primes job
     if (worker_req.get_arg("cmd") == "compareprimes") {
         int params[4];
