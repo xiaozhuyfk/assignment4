@@ -33,7 +33,6 @@ Worker_handle find_best_receiver(Request_msg& req);
 void request_new_worker();
 
 void compute_cmp_prime_resp(
-        int tag,
         Response_msg& cmp_prime_resp,
         std::vector<Response_msg> prime_resp);
 
@@ -212,8 +211,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
         if (prime_all_finish) {
             Response_msg cmp_prime_resp(tag_head);
-            compute_cmp_prime_resp(tag_head, cmp_prime_resp,
-                    mstate.cmp_prime_map[tag_head]);
+            compute_cmp_prime_resp(cmp_prime_resp, mstate.cmp_prime_map[tag_head]);
             send_client_response(client, cmp_prime_resp);
         }
     } else {
@@ -329,7 +327,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         // if all count
         if (all_cached_flag) {
             Response_msg cmp_prime_resp(tag);
-            compute_cmp_prime_resp(tag, cmp_prime_resp, mstate.cmp_prime_map[tag]);
+            compute_cmp_prime_resp(cmp_prime_resp, mstate.cmp_prime_map[tag]);
             send_client_response(client_handle, cmp_prime_resp);
         }
     // if it is not a compare primes job
@@ -559,9 +557,9 @@ void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
 
 
 void compute_cmp_prime_resp(
-        int tag,
         Response_msg& cmp_prime_resp,
         std::vector<Response_msg> prime_resp) {
+
     int counts[4];
     for (int i = 0; i < 4; i++) {
         counts[i] = atoi(prime_resp[i].get_response().c_str());
