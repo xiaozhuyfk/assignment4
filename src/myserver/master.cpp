@@ -363,7 +363,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
 
 void handle_tick() {
 
-    DLOG(INFO) << "Pending requests size = "
+    DLOG(WARNING) << "Pending requests size = "
             << mstate.pending_requests.size()
             << ", Pending cached jobs size = "
             << mstate.pending_cached_jobs.size()
