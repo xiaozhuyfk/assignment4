@@ -233,14 +233,12 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         wstate.processing_cached_job[thread_id - 1] = false;
     }
 
-    if (job == "projectidea") {
-        if (mstate.pending_cached_jobs.size() > 0) {
-            int tag = mstate.pending_cached_jobs.front();
-            mstate.pending_cached_jobs.pop();
-            Request_msg& req = mstate.request_mapping[tag];
-            set_thread_id(req, thread_id);
-            distribute_job_to_worker(worker_handle, req);
-        }
+    if (job == "projectidea" && mstate.pending_cached_jobs.size() > 0) {
+        int tag = mstate.pending_cached_jobs.front();
+        mstate.pending_cached_jobs.pop();
+        Request_msg& req = mstate.request_mapping[tag];
+        set_thread_id(req, thread_id);
+        distribute_job_to_worker(worker_handle, req);
     } else {
         if (mstate.pending_requests.size() > 0 &&
                 (worker_handle != mstate.first_worker || thread_id != 0)) {
@@ -409,7 +407,7 @@ void handle_tick() {
     if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 20 ||
-                mstate.pending_cached_jobs.size() > 0) {
+                mstate.pending_cached_jobs.size() > 2) {
             request_new_worker();
         }
     }
