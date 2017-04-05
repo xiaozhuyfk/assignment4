@@ -410,7 +410,7 @@ void handle_tick() {
     if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 20 ||
-                mstate.pending_cached_jobs.size() > 2) {
+                mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
     }
@@ -475,28 +475,19 @@ Worker_handle find_best_receiver(Request_msg& req) {
         if (req.get_arg("cmd") == "projectidea") {
             if (!wstate.processing_cached_job[0]) {
                 assert(wstate.work_estimate[1] == 0);
-                DLOG(INFO) << 1 << std::endl;
                 set_thread_id(req, 1);
-                DLOG(INFO) << 2 << std::endl;
                 return worker;
             } else if (!wstate.processing_cached_job[1]) {
                 assert(wstate.work_estimate[2] == 0);
-                DLOG(INFO) << 3 << std::endl;
                 set_thread_id(req, 2);
-                DLOG(INFO) << 4 << std::endl;
                 return worker;
             }
         } else {
             int start_thread = (worker == mstate.first_worker) ? 1 : 0;
             for (int i = start_thread; i < NUM_THREADS; i++) {
                 if (i == 1 || i == 2) continue;
-                DLOG(INFO) << worker << std::endl;
-                DLOG(INFO) << wstate.job_count << std::endl;
-                DLOG(INFO) << wstate.work_estimate[0] << std::endl;
                 if (wstate.work_estimate[i] == 0) {
-                    DLOG(INFO) << 5 << std::endl;
                     set_thread_id(req, i);
-                    DLOG(INFO) << 6 << std::endl;
                     return worker;
                 }
             }
@@ -536,12 +527,9 @@ void distribute_job(Request_msg& req) {
     else {
         Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
-            DLOG(INFO) << "YO it is null" << std::endl;
             mstate.pending_requests.push(tag);
-            DLOG(INFO) << "what happend?" << std::endl;
         } else {
             Worker_state& wstate = mstate.worker_roster[job_receiver];
-            DLOG(INFO) << "YO not null" << std::endl;
             wstate.job_count++;
             wstate.idle_time = 0;
             wstate.work_estimate[get_thread_id(req)] += work_estimate(req);
