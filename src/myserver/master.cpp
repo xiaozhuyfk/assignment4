@@ -407,17 +407,17 @@ void handle_tick() {
 
     if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
                 mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 24 ||
+        if (mstate.pending_requests.size() > 23 ||
                 mstate.pending_cached_jobs.size() > 1) {
             request_new_worker();
             request_new_worker();
-        } else if (mstate.pending_requests.size() > 16 ||
+        } else if (mstate.pending_requests.size() > 15 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
     } else if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 16 ||
+        if (mstate.pending_requests.size() > 15 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
