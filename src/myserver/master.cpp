@@ -233,7 +233,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
         wstate.processing_cached_job[thread_id - 1] = false;
     }
 
-    if (job == "projectidea" && mstate.pending_cached_jobs.size() > 0) {
+    if ((thread_id == 1 || thread_id == 2) &&
+            mstate.pending_cached_jobs.size() > 0) {
         int tag = mstate.pending_cached_jobs.front();
         mstate.pending_cached_jobs.pop();
         Request_msg& req = mstate.request_mapping[tag];
