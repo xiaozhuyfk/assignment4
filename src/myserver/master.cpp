@@ -234,7 +234,8 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     }
 
     if ((thread_id == 1 || thread_id == 2) &&
-            mstate.pending_cached_jobs.size() > 0) {
+            mstate.pending_cached_jobs.size() > 0 && 
+            mstate.pending_cached_jobs.size() * 10 < mstate.pending_requests.size()) {
         int tag = mstate.pending_cached_jobs.front();
         mstate.pending_cached_jobs.pop();
         Request_msg& req = mstate.request_mapping[tag];
@@ -411,13 +412,13 @@ void handle_tick() {
                 mstate.pending_cached_jobs.size() > 1) {
             request_new_worker();
             request_new_worker();
-        } else if (mstate.pending_requests.size() > 18 ||
+        } else if (mstate.pending_requests.size() > 20 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
     } else if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 18 ||
+        if (mstate.pending_requests.size() > 20 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
