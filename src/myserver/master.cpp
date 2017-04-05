@@ -564,6 +564,7 @@ void distribute_job_to_worker(Worker_handle worker, Request_msg& req) {
         wstate.job_count++;
         wstate.idle_time = 0;
         wstate.work_estimate[req.get_thread_id()] += work_estimate(req);
+        DLOG(INFO) << "yoyoproject" << std::endl;
         send_request_to_worker(worker, req);
         DLOG(INFO) << "eproject" << std::endl;
     } else {
