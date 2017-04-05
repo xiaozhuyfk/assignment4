@@ -46,6 +46,10 @@ void distribute_job(Request_msg& req);
 
 void distribute_job_to_worker(Worker_handle worker, Request_msg& req);
 
+void scale_up();
+
+void scale_down();
+
 // Generate a valid 'countprimes' request dictionary from integer 'n'
 static void create_computeprimes_req(Request_msg& req, int n) {
     std::ostringstream oss;
@@ -355,6 +359,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         }
     }
 
+    scale_up();
+
     // We're done!  This event handler now returns, and the master
     // process calls another one of your handlers when action is
     // required.
@@ -415,22 +421,27 @@ void handle_tick() {
         }
     }
     */
-    if (mstate.worker_roster.size() + mstate.requested_workers + 2 <
-                mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 36 ||
-                mstate.pending_cached_jobs.size() > 2) {
-            request_new_worker();
-            request_new_worker();
-            request_new_worker();
-        } else if (mstate.pending_requests.size() > 24 ||
-                mstate.pending_cached_jobs.size() > 1) {
-            request_new_worker();
-            request_new_worker();
-        } else if (mstate.pending_requests.size() > 12 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    } else if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
+    scale_up();
+    scale_down();
+}
+
+
+
+/*
+ * Helper functions
+ */
+
+void request_new_worker() {
+    int tag = random();
+    Request_msg req(tag);
+    req.set_arg("name", "my worker");
+    request_new_worker_node(req);
+    mstate.requested_workers++;
+}
+
+
+void scale_up() {
+    if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
                 mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 24 ||
                 mstate.pending_cached_jobs.size() > 1) {
@@ -447,7 +458,10 @@ void handle_tick() {
             request_new_worker();
         }
     }
+}
 
+
+void scale_down() {
     // discard idle workers
     for (auto &pair : mstate.worker_roster) {
         if (pair.first == mstate.first_worker) continue;
@@ -462,20 +476,6 @@ void handle_tick() {
             break;
         }
     }
-}
-
-
-
-/*
- * Helper functions
- */
-
-void request_new_worker() {
-    int tag = random();
-    Request_msg req(tag);
-    req.set_arg("name", "my worker");
-    request_new_worker_node(req);
-    mstate.requested_workers++;
 }
 
 
