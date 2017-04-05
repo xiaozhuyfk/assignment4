@@ -411,13 +411,13 @@ void handle_tick() {
                 mstate.pending_cached_jobs.size() > 1) {
             request_new_worker();
             request_new_worker();
-        } else if (mstate.pending_requests.size() > 12 ||
+        } else if (mstate.pending_requests.size() > 6 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
     } else if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 12 ||
+        if (mstate.pending_requests.size() > 6 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
