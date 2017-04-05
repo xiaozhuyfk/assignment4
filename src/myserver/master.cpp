@@ -519,7 +519,7 @@ void distribute_job(Request_msg& req) {
     } else if (req.get_arg("cmd") == "projectidea") {
         Worker_handle job_receiver = find_best_receiver(req);
         if (job_receiver == NULL) {
-            mstate.pending_requests.push(tag);
+            mstate.pending_cached_jobs.push(tag);
         } else {
             DLOG(INFO) << "Find receiver for projectidea on thread "
                     << req.get_thread_id()
