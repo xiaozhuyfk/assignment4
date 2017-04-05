@@ -487,7 +487,9 @@ Worker_handle find_best_receiver(Request_msg& req) {
                 return worker;
             }
         } else {
+            DLOG(INFO) << "dafuck" << std::endl;
             int start_thread = (worker == mstate.first_worker) ? 1 : 0;
+            DLOG(INFO) << "dafuck" << std::endl;
             for (int i = start_thread; i < NUM_THREADS; i++) {
                 if (i == 1 || i == 2) continue;
                 if (wstate.work_estimate[i] == 0) {
@@ -531,11 +533,8 @@ void distribute_job(Request_msg& req) {
     }
     // other jobs (418wisdom, countprimes)
     else {
-        DLOG(INFO) << "dafuck" << std::endl;
         Worker_handle job_receiver = find_best_receiver(req);
-        DLOG(INFO) << "dafuck" << std::endl;
         Worker_state& wstate = mstate.worker_roster[job_receiver];
-        DLOG(INFO) << "dafuck" << std::endl;
         if (job_receiver == NULL) {
             DLOG(INFO) << "YO it is null" << std::endl;
             mstate.pending_requests.push(tag);
