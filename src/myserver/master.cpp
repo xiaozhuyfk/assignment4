@@ -490,7 +490,9 @@ Worker_handle find_best_receiver(Request_msg& req) {
             int start_thread = (worker == mstate.first_worker) ? 1 : 0;
             for (int i = start_thread; i < NUM_THREADS; i++) {
                 if (i == 1 || i == 2) continue;
-                DLOG(INFO) << "before?" << std::endl;
+                DLOG(INFO) << worker << std::endl;
+                DLOG(INFO) << wstate.job_count << std::endl;
+                DLOG(INFO) << wstate.work_estimate[0] << std::endl;
                 if (wstate.work_estimate[i] == 0) {
                     DLOG(INFO) << 5 << std::endl;
                     set_thread_id(req, i);
