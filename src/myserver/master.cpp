@@ -535,6 +535,7 @@ void distribute_job(Request_msg& req) {
         if (job_receiver == NULL) {
             DLOG(INFO) << "YO it is null" << std::endl;
             mstate.pending_requests.push(tag);
+            DLOG(INFO) << "what happend?" << std::endl;
         } else {
             DLOG(INFO) << "YO not null" << std::endl;
             wstate.job_count++;
