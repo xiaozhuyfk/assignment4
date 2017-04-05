@@ -407,7 +407,7 @@ void handle_tick() {
 
     if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
                 mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 28 ||
+        if (mstate.pending_requests.size() > 26 ||
                 mstate.pending_cached_jobs.size() > 2) {
             request_new_worker();
             request_new_worker();
