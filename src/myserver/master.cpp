@@ -4,6 +4,7 @@
 #include <math.h>
 #include <limits.h>
 #include <assert.h>
+#include <string>
 
 #include <map>
 #include <vector>
@@ -71,25 +72,6 @@ struct Worker_state {
 };
 
 
-/*
- * Struct for cache keys
- */
-struct Cache_key {
-    std::string cmd;
-    std::string x;
-
-    bool operator==(const Cache_key &o) {
-        return cmd == o.cmd && x == o.x;
-    }
-
-    bool operator<(const Cache_key &o) const {
-        if (cmd < o.cmd) return true;
-        if (cmd > o.cmd) return false;
-        return atoi(x.c_str()) < atoi(o.x.c_str());
-    }
-};
-
-
 static struct Master_state {
 
         // The mstate struct collects all the master node state into one
@@ -119,7 +101,7 @@ static struct Master_state {
         std::queue<int> pending_cached_jobs;
 
         // cache map
-        std::map<Cache_key, Response_msg> cache_map;
+        std::map<std::string, Response_msg> cache_map;
 
         // compare_prime map from tag to Request_msg
         std::map<int, std::vector<Response_msg>> cmp_prime_map;
@@ -253,9 +235,7 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
 
     // add response to cache
     if (job == "countprimes") {
-        Cache_key k;
-        k.cmd = job;
-        k.x = req.get_arg("n");
+        std::string k= req.get_arg("n");
         mstate.cache_map[k] = resp;
     }
 }
@@ -312,9 +292,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             mstate.client_mapping[cmp_tag] = client_handle;
             mstate.request_mapping[cmp_tag] = dummy_req;
 
-            Cache_key cmp_test_key;
-            cmp_test_key.cmd = "countprimes";
-            cmp_test_key.x = params[i];
+
+            std::string cmp_test_key = std::to_string(params[i]);
 
             // Record the original tag for compare_prime
             mstate.tag_head_map[cmp_tag] = tag;
@@ -339,9 +318,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     // if it is not a compare primes job
     } else {
         if (worker_req.get_arg("cmd")=="countprimes") {
-            Cache_key test_key;
-            test_key.cmd = worker_req.get_arg("cmd");
-            test_key.x = worker_req.get_arg("n");
+            std::string test_key = worker_req.get_arg("n");
             // Check if the request is cached
             if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
                 Response_msg resp = mstate.cache_map[test_key];
@@ -387,42 +364,6 @@ void handle_tick() {
             wstate.idle_time++;
         }
     }
-
-    /*
-    // available for 2 more workers
-    if (mstate.worker_roster.size() + mstate.requested_workers + 2 <
-                mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 24 ||
-                mstate.pending_cached_jobs.size() > 2) {
-            request_new_worker();
-            request_new_worker();
-            request_new_worker();
-        } else if (mstate.pending_requests.size() > 12 ||
-                mstate.pending_cached_jobs.size() > 1) {
-            request_new_worker();
-            request_new_worker();
-        } else if (mstate.pending_requests.size() > 0 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    } else if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
-                mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 12 ||
-                mstate.pending_cached_jobs.size() > 1) {
-            request_new_worker();
-            request_new_worker();
-        } else if (mstate.pending_requests.size() > 0 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    } else if (mstate.worker_roster.size() + mstate.requested_workers <
-            mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 0 ||
-                mstate.pending_cached_jobs.size() > 0) {
-            request_new_worker();
-        }
-    }
-    */
 
     // discard idle workers
     for (auto &pair : mstate.worker_roster) {
