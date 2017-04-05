@@ -461,18 +461,22 @@ int work_estimate(Request_msg& req) {
 
 
 Worker_handle find_best_receiver(Request_msg& req) {
-    for (auto const &pair : mstate.worker_roster) {
+    for (auto &pair : mstate.worker_roster) {
         Worker_handle worker = pair.first;
         Worker_state wstate = pair.second;
 
         if (req.get_arg("cmd") == "projectidea") {
             if (!wstate.processing_cached_job[0]) {
                 assert(wstate.work_estimate[1] == 0);
+                DLOG(INFO) << 1 << std::endl;
                 SET_THREAD_ID(req, 1);
+                DLOG(INFO) << 2 << std::endl;
                 return worker;
             } else if (!wstate.processing_cached_job[1]) {
                 assert(wstate.work_estimate[2] == 0);
+                DLOG(INFO) << 3 << std::endl;
                 SET_THREAD_ID(req, 2);
+                DLOG(INFO) << 4 << std::endl;
                 return worker;
             }
         } else {
@@ -480,7 +484,9 @@ Worker_handle find_best_receiver(Request_msg& req) {
             for (int i = start_thread; i < NUM_THREADS; i++) {
                 if (i == 1 || i == 2) continue;
                 if (wstate.work_estimate[i] == 0) {
+                    DLOG(INFO) << 5 << std::endl;
                     SET_THREAD_ID(req, i);
+                    DLOG(INFO) << 6 << std::endl;
                     return worker;
                 }
             }
