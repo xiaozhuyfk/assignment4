@@ -533,8 +533,10 @@ void distribute_job(Request_msg& req) {
         Worker_handle job_receiver = find_best_receiver(req);
         Worker_state& wstate = mstate.worker_roster[job_receiver];
         if (job_receiver == NULL) {
+            DLOG(INFO) << "YO it is null" << std::endl;
             mstate.pending_requests.push(tag);
         } else {
+            DLOG(INFO) << "YO not null" << std::endl;
             wstate.job_count++;
             wstate.idle_time = 0;
             wstate.work_estimate[get_thread_id(req)] += work_estimate(req);
