@@ -433,12 +433,12 @@ void scale_up() {
                 mstate.pending_cached_jobs.size() > 1) {
             request_new_worker();
             request_new_worker();
-        } else if (mstate.pending_requests.size() > 12 ||
+        } else if (mstate.pending_requests.size() > 16 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
     } else if (mstate.worker_roster.size() < mstate.max_num_workers) {
-        if (mstate.pending_requests.size() > 12 ||
+        if (mstate.pending_requests.size() > 16 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
@@ -454,7 +454,7 @@ void scale_down() {
         Worker_state& wstate = pair.second;
         if (wstate.instant_job_count == 0 &&
                 wstate.job_count == 0 &&
-                wstate.idle_time > 1 &&
+                wstate.idle_time > 2 &&
                 mstate.worker_roster.size() > 1) {
             mstate.worker_roster.erase(pair.first);
             kill_worker_node(pair.first);
