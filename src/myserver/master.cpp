@@ -252,10 +252,10 @@ void handle_worker_response(Worker_handle worker_handle, const Response_msg& res
     }
 
     // add response to cache
-    if (job == "countprimes") {
+    if (job != "compareprimes") {
         Cache_key k;
         k.cmd = job;
-        k.x = req.get_arg("n");
+        k.x = (job == "countprimes") ? req.get_arg("n") : req.get_arg("x");
         mstate.cache_map[k] = resp;
     }
 }
@@ -338,18 +338,17 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
         }
     // if it is not a compare primes job
     } else {
-        if (worker_req.get_arg("cmd")=="countprimes") {
-            Cache_key test_key;
-            test_key.cmd = worker_req.get_arg("cmd");
-            test_key.x = worker_req.get_arg("n");
-            // Check if the request is cached
-            if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
-                Response_msg resp = mstate.cache_map[test_key];
-                send_client_response(client_handle, resp);
-            // if it is an instant job, send to worker directly
-            } else {
-                distribute_job(worker_req);
-            }
+        Cache_key test_key;
+        test_key.cmd = worker_req.get_arg("cmd");
+        test_key.x = (test_key.cmd == "countprimes") ?
+                worker_req.get_arg("n") :
+                worker_req.get_arg("x");
+
+        // Check if the request is cached
+        if (mstate.cache_map.find(test_key) != mstate.cache_map.end()) {
+            Response_msg resp = mstate.cache_map[test_key];
+            send_client_response(client_handle, resp);
+        // if it is an instant job, send to worker directly
         } else {
             distribute_job(worker_req);
         }
@@ -387,6 +386,42 @@ void handle_tick() {
             wstate.idle_time++;
         }
     }
+
+    /*
+    // available for 2 more workers
+    if (mstate.worker_roster.size() + mstate.requested_workers + 2 <
+                mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 24 ||
+                mstate.pending_cached_jobs.size() > 2) {
+            request_new_worker();
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 12 ||
+                mstate.pending_cached_jobs.size() > 1) {
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    } else if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
+                mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 12 ||
+                mstate.pending_cached_jobs.size() > 1) {
+            request_new_worker();
+            request_new_worker();
+        } else if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    } else if (mstate.worker_roster.size() + mstate.requested_workers <
+            mstate.max_num_workers) {
+        if (mstate.pending_requests.size() > 0 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    }
+    */
 
     // discard idle workers
     for (auto &pair : mstate.worker_roster) {
