@@ -360,6 +360,7 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     }
 
     // scale up
+    /*
     if (mstate.worker_roster.size() + mstate.requested_workers <
             mstate.max_num_workers && mstate.requested_workers == 0) {
         if (mstate.pending_requests.size() > 24 ||
@@ -367,6 +368,8 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
             request_new_worker();
         }
     }
+    */
+    scale_up();
 
     // We're done!  This event handler now returns, and the master
     // process calls another one of your handlers when action is
@@ -423,8 +426,9 @@ void scale_up() {
             << mstate.requested_workers
             << std::endl;
 
-    if (mstate.worker_roster.size() + mstate.requested_workers + 1 <
-                mstate.max_num_workers) {
+    if (mstate.requested_workers > 0) return;
+
+    if (mstate.worker_roster.size() + 1 < mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 24 ||
                 mstate.pending_cached_jobs.size() > 1) {
             request_new_worker();
@@ -433,8 +437,7 @@ void scale_up() {
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
         }
-    } else if (mstate.worker_roster.size() + mstate.requested_workers <
-            mstate.max_num_workers) {
+    } else if (mstate.worker_roster.size() < mstate.max_num_workers) {
         if (mstate.pending_requests.size() > 12 ||
                 mstate.pending_cached_jobs.size() > 0) {
             request_new_worker();
