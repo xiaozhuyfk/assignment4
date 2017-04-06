@@ -360,7 +360,13 @@ void handle_client_request(Client_handle client_handle, const Request_msg& clien
     }
 
     // scale up
-    scale_up();
+    if (mstate.worker_roster.size() + mstate.requested_workers <
+            mstate.max_num_workers && mstate.requested_workers == 0) {
+        if (mstate.pending_requests.size() > 24 ||
+                mstate.pending_cached_jobs.size() > 0) {
+            request_new_worker();
+        }
+    }
 
     // We're done!  This event handler now returns, and the master
     // process calls another one of your handlers when action is
@@ -387,7 +393,7 @@ void handle_tick() {
         }
     }
 
-    scale_up();
+    //scale_up();
     scale_down();
 }
 
