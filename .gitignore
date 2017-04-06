@@ -11,3 +11,4 @@ worker
 logs/
 latedays.qsub*
 logs*/
+writeup.pdf
